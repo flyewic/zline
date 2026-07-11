@@ -29,9 +29,6 @@ fn readFileHeader(io: Io, dir_path: []const u8, rel_path: []const u8, buf: []u8)
 pub fn collectFiles(allocator: std.mem.Allocator, io: Io, dir_path: []const u8, include_hidden: bool) ![]FileEntry {
     var entries: std.ArrayList(FileEntry) = .empty;
 
-    var ext_map = try langs.buildExtensionMap(allocator);
-    defer ext_map.deinit();
-
     const cwd = Io.Dir.cwd();
     const dir = try Io.Dir.openDir(cwd, io, dir_path, .{ .iterate = true });
     defer Io.Dir.close(dir, io);
@@ -59,7 +56,7 @@ pub fn collectFiles(allocator: std.mem.Allocator, io: Io, dir_path: []const u8, 
             const basename = std.fs.path.basename(entry.path);
 
             const lang = blk: {
-                if (langs.detect(ext, basename, &ext_map)) |info| {
+                if (langs.detect(ext, basename)) |info| {
                     switch (info) {
                         .unique => |l| break :blk l,
                         .ambiguous => |amb| {

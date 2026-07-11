@@ -255,59 +255,69 @@ pub const ExtInfo = union(enum) {
     ambiguous: AmbiguousInfo,
 };
 
-const RuleDef = struct {
-    patterns: []const []const u8,
-    lang_name: []const u8,
+fn comptimeLang(comptime name: []const u8) *const Language {
+    inline for (&languages) |*l| {
+        if (comptime std.mem.eql(u8, l.name, name)) return l;
+    }
+    @compileError("language not found: " ++ name);
+}
+
+const cls_rules = [_]HeuristicRule{
+    .{ .patterns = &.{ "@isTest", "public class ", "private class ", "trigger ", "Schema." }, .lang = comptimeLang("Apex") },
+    .{ .patterns = &.{ "\\documentclass", "\\usepackage", "\\begin{document}", "\\newcommand" }, .lang = comptimeLang("LaTeX") },
+};
+const cl_rules = [_]HeuristicRule{
+    .{ .patterns = &.{ "#include", "__kernel", "get_global_id" }, .lang = comptimeLang("OpenCL") },
+    .{ .patterns = &.{ "defpackage", "(defun ", "(defvar " }, .lang = comptimeLang("Lisp") },
+};
+const m_rules = [_]HeuristicRule{
+    .{ .patterns = &.{ "@interface", "@implementation", "#import" }, .lang = comptimeLang("Objective-C") },
+    .{ .patterns = &.{ "function ", "endfunction" }, .lang = comptimeLang("MATLAB") },
+};
+const v_rules = [_]HeuristicRule{
+    .{ .patterns = &.{ "module ", "endmodule", "wire ", "reg ", "always" }, .lang = comptimeLang("Verilog") },
+    .{ .patterns = &.{ "fn ", "mut ", "pub fn" }, .lang = comptimeLang("V") },
+};
+const vh_rules = [_]HeuristicRule{
+    .{ .patterns = &.{ "`ifndef", "`define", "`endif", "`include", "parameter " }, .lang = comptimeLang("Verilog") },
+    .{ .patterns = &.{ "fn ", "mut ", "pub fn" }, .lang = comptimeLang("V") },
 };
 
-const AmbiguousDef = struct {
-    ext: []const u8,
-    rules: []const RuleDef,
-    fallback_lang: []const u8,
+const ext_map = blk: {
+    @setEvalBranchQuota(50000);
+
+    const ExtKV = struct { []const u8, ExtInfo };
+    var kvs: [384]ExtKV = undefined;
+    var n: usize = 0;
+
+    const ambig_set = [_][]const u8{ ".cls", ".cl", ".m", ".v", ".vh" };
+
+    for (&languages) |*l| {
+        for (l.extensions) |ext| {
+            var skip = false;
+            for (ambig_set) |ae| {
+                if (std.mem.eql(u8, ext, ae)) { skip = true; break; }
+            }
+            if (!skip) {
+                kvs[n] = .{ ext, .{ .unique = l } };
+                n += 1;
+            }
+        }
+    }
+
+    kvs[n] = .{ ".cls", .{ .ambiguous = .{ .rules = &cls_rules, .fallback = comptimeLang("LaTeX") } } }; n += 1;
+    kvs[n] = .{ ".cl", .{ .ambiguous = .{ .rules = &cl_rules, .fallback = comptimeLang("OpenCL") } } }; n += 1;
+    kvs[n] = .{ ".m", .{ .ambiguous = .{ .rules = &m_rules, .fallback = comptimeLang("Objective-C") } } }; n += 1;
+    kvs[n] = .{ ".v", .{ .ambiguous = .{ .rules = &v_rules, .fallback = comptimeLang("Verilog") } } }; n += 1;
+    kvs[n] = .{ ".vh", .{ .ambiguous = .{ .rules = &vh_rules, .fallback = comptimeLang("Verilog") } } }; n += 1;
+
+    break :blk std.StaticStringMap(ExtInfo).initComptime(kvs[0..n]);
 };
 
-const ambiguous_defs = [_]AmbiguousDef{
-    .{
-        .ext = ".cls",
-        .rules = &.{
-            .{ .patterns = &.{ "@isTest", "public class ", "private class ", "trigger ", "Schema." }, .lang_name = "Apex" },
-            .{ .patterns = &.{ "\\documentclass", "\\usepackage", "\\begin{document}", "\\newcommand" }, .lang_name = "LaTeX" },
-        },
-        .fallback_lang = "LaTeX",
-    },
-    .{
-        .ext = ".cl",
-        .rules = &.{
-            .{ .patterns = &.{ "#include", "__kernel", "get_global_id" }, .lang_name = "OpenCL" },
-            .{ .patterns = &.{ "defpackage", "(defun ", "(defvar " }, .lang_name = "Lisp" },
-        },
-        .fallback_lang = "OpenCL",
-    },
-    .{
-        .ext = ".m",
-        .rules = &.{
-            .{ .patterns = &.{ "@interface", "@implementation", "#import" }, .lang_name = "Objective-C" },
-            .{ .patterns = &.{ "function ", "endfunction" }, .lang_name = "MATLAB" },
-        },
-        .fallback_lang = "Objective-C",
-    },
-    .{
-        .ext = ".v",
-        .rules = &.{
-            .{ .patterns = &.{ "module ", "endmodule", "wire ", "reg ", "always" }, .lang_name = "Verilog" },
-            .{ .patterns = &.{ "fn ", "mut ", "pub fn" }, .lang_name = "V" },
-        },
-        .fallback_lang = "Verilog",
-    },
-    .{
-        .ext = ".vh",
-        .rules = &.{
-            .{ .patterns = &.{ "`ifndef", "`define", "`endif", "`include", "parameter " }, .lang_name = "Verilog" },
-            .{ .patterns = &.{ "fn ", "mut ", "pub fn" }, .lang_name = "V" },
-        },
-        .fallback_lang = "Verilog",
-    },
-};
+pub fn detect(ext: []const u8, basename: []const u8) ?ExtInfo {
+    if (ext_map.get(ext)) |info| return info;
+    return ext_map.get(basename);
+}
 
 const shebang_map = [_]struct { name: []const u8, lang_name: []const u8 }{
     .{ .name = "python", .lang_name = "Python" },
@@ -352,67 +362,6 @@ fn findLangByName(name: []const u8) ?*const Language {
         if (std.mem.eql(u8, l.name, name)) return l;
     }
     return null;
-}
-
-pub const ExtensionMap = struct {
-    map: std.StringHashMap(ExtInfo),
-    rule_mem: []HeuristicRule,
-
-    pub fn deinit(self: *@This()) void {
-        if (self.rule_mem.len > 0) {
-            self.map.allocator.free(self.rule_mem);
-        }
-        self.map.deinit();
-    }
-
-    fn put(self: *@This(), key: []const u8, value: ExtInfo) !void {
-        return self.map.put(key, value);
-    }
-
-    pub fn get(self: *const @This(), key: []const u8) ?ExtInfo {
-        return self.map.get(key);
-    }
-};
-
-pub fn buildExtensionMap(allocator: std.mem.Allocator) !ExtensionMap {
-    var em = ExtensionMap{
-        .map = std.StringHashMap(ExtInfo).init(allocator),
-        .rule_mem = &.{},
-    };
-
-    for (&languages) |*l| {
-        for (l.extensions) |ext| {
-            try em.put(ext, .{ .unique = l });
-        }
-    }
-
-    var total_rules: usize = 0;
-    for (ambiguous_defs) |def| total_rules += def.rules.len;
-
-    if (total_rules > 0) {
-        var rules_mem = try allocator.alloc(HeuristicRule, total_rules);
-        var rule_idx: usize = 0;
-
-        for (ambiguous_defs) |def| {
-            const rules = rules_mem[rule_idx..][0..def.rules.len];
-            rule_idx += def.rules.len;
-            for (def.rules, 0..) |def_rule, i| {
-                rules[i] = .{ .patterns = def_rule.patterns, .lang = findLangByName(def_rule.lang_name).? };
-            }
-            try em.put(def.ext, .{ .ambiguous = .{
-                .rules = rules,
-                .fallback = findLangByName(def.fallback_lang).?,
-            }});
-        }
-        em.rule_mem = rules_mem;
-    }
-
-    return em;
-}
-
-pub fn detect(ext: []const u8, basename: []const u8, map: *const ExtensionMap) ?ExtInfo {
-    if (map.get(ext)) |info| return info;
-    return map.get(basename);
 }
 
 pub fn needsContent(info: ExtInfo) bool {
@@ -482,33 +431,24 @@ pub fn shebangDetect(contents: []const u8) ?*const Language {
 }
 
 test "extension detection" {
-    var map = try buildExtensionMap(std.testing.allocator);
-    defer map.deinit();
-
-    try std.testing.expectEqualStrings("Zig", resolve(map.get(".zig").?, "").name);
-    try std.testing.expectEqualStrings("C", resolve(map.get(".c").?, "").name);
-    try std.testing.expectEqualStrings("C", resolve(map.get(".h").?, "").name);
-    try std.testing.expect(map.get(".unknown") == null);
+    try std.testing.expectEqualStrings("Zig", resolve(ext_map.get(".zig").?, "").name);
+    try std.testing.expectEqualStrings("C", resolve(ext_map.get(".c").?, "").name);
+    try std.testing.expectEqualStrings("C", resolve(ext_map.get(".h").?, "").name);
+    try std.testing.expect(ext_map.get(".unknown") == null);
 }
 
 test "basename and common extensions" {
-    var map = try buildExtensionMap(std.testing.allocator);
-    defer map.deinit();
-
-    try std.testing.expect(map.get("Makefile") != null);
-    try std.testing.expect(map.get("Dockerfile") != null);
-    try std.testing.expect(map.get("BUILD") != null);
-    try std.testing.expect(map.get(".cu") != null);
-    try std.testing.expect(map.get(".coffee") != null);
-    try std.testing.expect(map.get(".vue") != null);
-    try std.testing.expect(map.get(".cr") != null);
+    try std.testing.expect(ext_map.get("Makefile") != null);
+    try std.testing.expect(ext_map.get("Dockerfile") != null);
+    try std.testing.expect(ext_map.get("BUILD") != null);
+    try std.testing.expect(ext_map.get(".cu") != null);
+    try std.testing.expect(ext_map.get(".coffee") != null);
+    try std.testing.expect(ext_map.get(".vue") != null);
+    try std.testing.expect(ext_map.get(".cr") != null);
 }
 
 test "ambiguous .cl disambiguation" {
-    var map = try buildExtensionMap(std.testing.allocator);
-    defer map.deinit();
-
-    const info = map.get(".cl").?;
+    const info = ext_map.get(".cl").?;
     try std.testing.expect(needsContent(info));
 
     try std.testing.expectEqualStrings("OpenCL", resolve(info, "").name);
@@ -518,10 +458,7 @@ test "ambiguous .cl disambiguation" {
 }
 
 test "ambiguous .m disambiguation" {
-    var map = try buildExtensionMap(std.testing.allocator);
-    defer map.deinit();
-
-    const info = map.get(".m").?;
+    const info = ext_map.get(".m").?;
     try std.testing.expect(needsContent(info));
 
     try std.testing.expectEqualStrings("Objective-C", resolve(info, "").name);
@@ -531,10 +468,7 @@ test "ambiguous .m disambiguation" {
 }
 
 test "ambiguous .v disambiguation" {
-    var map = try buildExtensionMap(std.testing.allocator);
-    defer map.deinit();
-
-    const info = map.get(".v").?;
+    const info = ext_map.get(".v").?;
     try std.testing.expect(needsContent(info));
 
     try std.testing.expectEqualStrings("Verilog", resolve(info, "").name);
@@ -543,10 +477,7 @@ test "ambiguous .v disambiguation" {
 }
 
 test "ambiguous .vh disambiguation" {
-    var map = try buildExtensionMap(std.testing.allocator);
-    defer map.deinit();
-
-    const info = map.get(".vh").?;
+    const info = ext_map.get(".vh").?;
     try std.testing.expect(needsContent(info));
 
     try std.testing.expectEqualStrings("Verilog", resolve(info, "").name);
@@ -575,71 +506,47 @@ test "shebang edge cases" {
 }
 
 test "needsContent for unique vs ambiguous" {
-    var map = try buildExtensionMap(std.testing.allocator);
-    defer map.deinit();
-
-    try std.testing.expect(!needsContent(map.get(".zig").?));
-    try std.testing.expect(!needsContent(map.get(".rs").?));
-    try std.testing.expect(needsContent(map.get(".cl").?));
-    try std.testing.expect(needsContent(map.get(".m").?));
+    try std.testing.expect(!needsContent(ext_map.get(".zig").?));
+    try std.testing.expect(!needsContent(ext_map.get(".rs").?));
+    try std.testing.expect(needsContent(ext_map.get(".cl").?));
+    try std.testing.expect(needsContent(ext_map.get(".m").?));
 }
 
 test "resolve unique ignores content" {
-    var map = try buildExtensionMap(std.testing.allocator);
-    defer map.deinit();
-
-    const info = map.get(".zig").?;
+    const info = ext_map.get(".zig").?;
     try std.testing.expectEqualStrings("Zig", resolve(info, "").name);
     try std.testing.expectEqualStrings("Zig", resolve(info, "anything at all").name);
 }
 
 test "scoring picks most patterns matched" {
-    var map = try buildExtensionMap(std.testing.allocator);
-    defer map.deinit();
-
-    const info = map.get(".cl").?;
+    const info = ext_map.get(".cl").?;
 
     try std.testing.expectEqualStrings("OpenCL", resolve(info, "#include <foo.h>\n__kernel void").name);
     try std.testing.expectEqualStrings("Lisp", resolve(info, "(defun foo ()\n(defvar *x* 1)\n#include <bar.h>").name);
 }
 
 test "scoring tie falls back to default" {
-    var map = try buildExtensionMap(std.testing.allocator);
-    defer map.deinit();
-
-    const info = map.get(".cl").?;
+    const info = ext_map.get(".cl").?;
 
     try std.testing.expectEqualStrings("OpenCL", resolve(info, "#include <foo.h>\n(defun bar ())").name);
 }
 
 test "detect extension priority over basename" {
-    var map = try buildExtensionMap(std.testing.allocator);
-    defer map.deinit();
-
-    const info = detect(".zig", "main.cpp", &map).?;
+    const info = detect(".zig", "main.cpp").?;
     try std.testing.expectEqualStrings("Zig", resolve(info, "").name);
 }
 
 test "detect falls back to basename" {
-    var map = try buildExtensionMap(std.testing.allocator);
-    defer map.deinit();
-
-    const info = detect("", "Makefile", &map).?;
+    const info = detect("", "Makefile").?;
     try std.testing.expectEqualStrings("Makefile", resolve(info, "").name);
 }
 
 test "detect returns null for unknown" {
-    var map = try buildExtensionMap(std.testing.allocator);
-    defer map.deinit();
-
-    try std.testing.expect(detect(".wut", "unknown.wut", &map) == null);
+    try std.testing.expect(detect(".wut", "unknown.wut") == null);
 }
 
 test "ambiguous .cls disambiguation" {
-    var map = try buildExtensionMap(std.testing.allocator);
-    defer map.deinit();
-
-    const info = map.get(".cls").?;
+    const info = ext_map.get(".cls").?;
     try std.testing.expect(needsContent(info));
 
     try std.testing.expectEqualStrings("LaTeX", resolve(info, "").name);
@@ -654,36 +561,33 @@ test "shebang make and pwsh" {
 }
 
 test "new languages in extension map" {
-    var map = try buildExtensionMap(std.testing.allocator);
-    defer map.deinit();
+    try std.testing.expect(detect(".trigger", "MyTrigger.trigger") != null);
+    try std.testing.expect(detect(".scad", "model.scad") != null);
+    try std.testing.expect(detect(".pkl", "config.pkl") != null);
+    try std.testing.expect(detect(".prisma", "schema.prisma") != null);
+    try std.testing.expect(detect(".slint", "ui.slint") != null);
+    try std.testing.expect(detect(".adoc", "readme.adoc") != null);
+    try std.testing.expect(detect(".hbs", "template.hbs") != null);
+    try std.testing.expect(detect(".twig", "page.twig") != null);
+    try std.testing.expect(detect(".jinja", "page.jinja") != null);
+    try std.testing.expect(detect(".j2", "page.j2") != null);
+    try std.testing.expect(detect(".robot", "test.robot") != null);
+    try std.testing.expect(detect(".rego", "policy.rego") != null);
+    try std.testing.expect(detect(".just", "justfile.just") != null);
+    try std.testing.expect(detect(".haml", "view.haml") != null);
+    try std.testing.expect(detect(".slim", "view.slim") != null);
+    try std.testing.expect(detect(".tpl", "template.tpl") != null);
+    try std.testing.expect(detect(".cshtml", "view.cshtml") != null);
+    try std.testing.expect(detect(".vba", "module.vba") != null);
+    try std.testing.expect(detect(".txt", "notes.txt") != null);
+    try std.testing.expect(detect(".properties", "config.properties") != null);
 
-    try std.testing.expect(detect(".trigger", "MyTrigger.trigger", &map) != null);
-    try std.testing.expect(detect(".scad", "model.scad", &map) != null);
-    try std.testing.expect(detect(".pkl", "config.pkl", &map) != null);
-    try std.testing.expect(detect(".prisma", "schema.prisma", &map) != null);
-    try std.testing.expect(detect(".slint", "ui.slint", &map) != null);
-    try std.testing.expect(detect(".adoc", "readme.adoc", &map) != null);
-    try std.testing.expect(detect(".hbs", "template.hbs", &map) != null);
-    try std.testing.expect(detect(".twig", "page.twig", &map) != null);
-    try std.testing.expect(detect(".jinja", "page.jinja", &map) != null);
-    try std.testing.expect(detect(".j2", "page.j2", &map) != null);
-    try std.testing.expect(detect(".robot", "test.robot", &map) != null);
-    try std.testing.expect(detect(".rego", "policy.rego", &map) != null);
-    try std.testing.expect(detect(".just", "justfile.just", &map) != null);
-    try std.testing.expect(detect(".haml", "view.haml", &map) != null);
-    try std.testing.expect(detect(".slim", "view.slim", &map) != null);
-    try std.testing.expect(detect(".tpl", "template.tpl", &map) != null);
-    try std.testing.expect(detect(".cshtml", "view.cshtml", &map) != null);
-    try std.testing.expect(detect(".vba", "module.vba", &map) != null);
-    try std.testing.expect(detect(".txt", "notes.txt", &map) != null);
-    try std.testing.expect(detect(".properties", "config.properties", &map) != null);
-
-    try std.testing.expect(detect(".cts", "module.cts", &map) != null);
-    try std.testing.expect(detect(".mts", "module.mts", &map) != null);
-    try std.testing.expect(detect(".ksh", "script.ksh", &map) != null);
-    try std.testing.expect(detect(".F90", "mod.F90", &map) != null);
-    try std.testing.expect(detect(".cobol", "prog.cobol", &map) != null);
-    try std.testing.expect(detect(".Rmd", "report.Rmd", &map) != null);
-    try std.testing.expect(detect(".xaml", "ui.xaml", &map) != null);
-    try std.testing.expect(detect(".csproj", "proj.csproj", &map) != null);
+    try std.testing.expect(detect(".cts", "module.cts") != null);
+    try std.testing.expect(detect(".mts", "module.mts") != null);
+    try std.testing.expect(detect(".ksh", "script.ksh") != null);
+    try std.testing.expect(detect(".F90", "mod.F90") != null);
+    try std.testing.expect(detect(".cobol", "prog.cobol") != null);
+    try std.testing.expect(detect(".Rmd", "report.Rmd") != null);
+    try std.testing.expect(detect(".xaml", "ui.xaml") != null);
+    try std.testing.expect(detect(".csproj", "proj.csproj") != null);
 }
