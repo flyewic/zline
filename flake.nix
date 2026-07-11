@@ -24,7 +24,7 @@
           pname = "zline";
           inherit version;
           src = self;
-          nativeBuildInputs = [ pkgs.zig ];
+          nativeBuildInputs = [ pkgs.zig_0_16 ];
           dontConfigure = true;
           buildPhase = ''
             zig build -Doptimize=ReleaseSmall
@@ -42,7 +42,7 @@
         };
 
         devShells.default = pkgs.mkShell {
-          nativeBuildInputs = [ pkgs.zig ];
+          nativeBuildInputs = [ pkgs.zig_0_16 ];
         };
       }
     );
