@@ -8,7 +8,6 @@ pub const Language = struct {
     block_comment_close: ?[]const u8 = null,
 };
 
-/// — Comment style templates —
 const cStyle = Language{
     .name = "", .extensions = &.{},
     .line_comment = "//",
@@ -81,7 +80,6 @@ fn L(comptime base: Language, comptime name: []const u8, comptime exts: []const 
 }
 
 pub const languages = [_]Language{
-    // — C-style (// + /* */) —
     L(cStyle, "Zig", &.{ ".zig", ".zon" }),
     L(cStyle, "C", &.{ ".c", ".h" }),
     L(cStyle, "C++", &.{ ".cpp", ".hpp", ".cc", ".cxx", ".hh", ".hxx" }),
@@ -122,7 +120,6 @@ pub const languages = [_]Language{
     L(cStyle, "Metal", &.{ ".metal" }),
     L(cStyle, "Processing", &.{ ".pde" }),
 
-    // — Hash-style (#) —
     L(hashStyle, "Python", &.{ ".py", ".pyw", ".pyi" }),
     L(hashStyle, "Ruby", &.{ ".rb", ".rake", ".gemspec" }),
     L(hashStyle, "Perl", &.{ ".pl", ".pm", ".pod" }),
@@ -150,19 +147,15 @@ pub const languages = [_]Language{
     L(hashStyle, "GDScript", &.{ ".gd" }),
     L(hashStyle, "Racket", &.{ ".rkt", ".rktl" }),
 
-    // — Hash + C-block (# + /* */) —
     L(hashCBlock, "Terraform", &.{ ".tf", ".tfvars" }),
 
-    // — Double-dash style (--) —
     L(doubleDashStyle, "Ada", &.{ ".adb", ".ads" }),
     L(doubleDashStyle, "VHDL", &.{ ".vhd", ".vhdl" }),
     L(doubleDashStyle, "Dhall", &.{ ".dhall" }),
 
-    // — Double-dash + C-block (-- + /* */) —
     L(doubleDashCBlock, "SQL", &.{ ".sql" }),
     L(doubleDashCBlock, "PL/SQL", &.{ ".pks", ".pkb" }),
 
-    // — Semicolon style (;) —
     L(semicolonStyle, "Clojure", &.{ ".clj", ".cljs", ".cljc", ".edn" }),
     L(semicolonStyle, "Lisp", &.{ ".lisp", ".lsp", ".cl" }),
     L(semicolonStyle, "Scheme", &.{ ".scm", ".ss" }),
@@ -170,36 +163,29 @@ pub const languages = [_]Language{
     L(semicolonStyle, "INI", &.{ ".ini" }),
     L(semicolonStyle, "Emacs Lisp", &.{ ".el" }),
 
-    // — Percent style (%) —
     L(percentStyle, "Erlang", &.{ ".erl", ".hrl" }),
     L(percentStyle, "Prolog", &.{ ".pro" }),
     L(percentStyle, "LaTeX", &.{ ".tex", ".latex", ".sty", ".cls" }),
 
-    // — HTML-style (<!-- -->) —
     L(htmlStyle, "HTML", &.{ ".html", ".htm", ".xhtml" }),
     L(htmlStyle, "XML", &.{ ".xml", ".xsd", ".xsl" }),
     L(htmlStyle, "SVG", &.{ ".svg" }),
     L(htmlStyle, "Svelte", &.{ ".svelte" }),
     L(htmlStyle, "Vue", &.{ ".vue" }),
 
-    // — CSS-style (/* */ only) —
     L(cssStyle, "CSS", &.{ ".css" }),
 
-    // — Haskell-style (-- + {- -}) —
     L(haskellStyle, "Haskell", &.{ ".hs", ".lhs" }),
     L(haskellStyle, "Elm", &.{ ".elm" }),
     L(haskellStyle, "PureScript", &.{".purs"}),
     L(haskellStyle, "Idris", &.{ ".idr" }),
 
-    // — Pascal-style (// + (* *)) —
     L(pascalStyle, "F#", &.{ ".fs", ".fsx", ".fsi" }),
     L(pascalStyle, "Pascal", &.{ ".pas", ".pp", ".inc" }),
     L(pascalStyle, "Delphi", &.{ ".dpr" }),
 
-    // — OCaml-style (no line, (* *)) —
     L(ocamlStyle, "OCaml", &.{ ".ml", ".mli" }),
 
-    // — No comments —
     L(noComment, "JSON", &.{ ".json" }),
     L(noComment, "Markdown", &.{ ".md", ".markdown" }),
     L(noComment, "reStructuredText", &.{".rst"}),
