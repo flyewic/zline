@@ -22,19 +22,20 @@ pub fn countLines(contents: []const u8, lang: *const langs.Language) FileCount {
     }
 
     var in_block_comment = false;
-    const trimmed = if (contents.len > 0 and contents[contents.len - 1] == '\n')
+    const trimmed = if (contents[contents.len - 1] == '\n')
         contents[0 .. contents.len - 1]
     else
         contents;
     var lines = std.mem.splitScalar(u8, trimmed, '\n');
     while (lines.next()) |raw_line| {
         result.lines += 1;
-        const line = std.mem.trim(u8, raw_line, " \t\r");
 
-        if (line.len == 0) {
+        const first_nw = std.mem.indexOfNone(u8, raw_line, " \t\r") orelse raw_line.len;
+        if (first_nw == raw_line.len) {
             result.blanks += 1;
             continue;
         }
+        const line = raw_line[first_nw..];
 
         if (in_block_comment) {
             result.comments += 1;
@@ -49,8 +50,7 @@ pub fn countLines(contents: []const u8, lang: *const langs.Language) FileCount {
         if (lang.block_comment_open) |open| {
             if (lang.block_comment_close) |close| {
                 if (std.mem.indexOf(u8, line, open)) |idx| {
-                    const before = std.mem.trim(u8, line[0..idx], " \t\r");
-                    if (before.len == 0) {
+                    if (idx == 0) {
                         result.comments += 1;
                         if (std.mem.indexOf(u8, line, close) == null) {
                             in_block_comment = true;
@@ -62,13 +62,10 @@ pub fn countLines(contents: []const u8, lang: *const langs.Language) FileCount {
         }
 
         if (lang.line_comment) |lc| {
-            if (lc.len > 0) {
-                if (std.mem.indexOf(u8, line, lc)) |idx| {
-                    const before = std.mem.trim(u8, line[0..idx], " \t\r");
-                    if (before.len == 0) {
-                        result.comments += 1;
-                        continue;
-                    }
+            if (std.mem.indexOf(u8, line, lc)) |idx| {
+                if (idx == 0) {
+                    result.comments += 1;
+                    continue;
                 }
             }
         }
@@ -313,4 +310,57 @@ test "countLines lua block comment" {
     try std.testing.expectEqual(@as(u64, 4), result.lines);
     try std.testing.expectEqual(@as(u64, 1), result.code);
     try std.testing.expectEqual(@as(u64, 3), result.comments);
+}
+
+test "countLines pascal block comment" {
+    const lang = langs.Language{
+        .name = "Pascal",
+        .extensions = &.{},
+        .block_comment_open = "(*",
+        .block_comment_close = "*)",
+    };
+    const source =
+        \\procedure Foo;
+        \\(* block comment *)
+        \\begin
+        \\end
+    ;
+    const result = countLines(source, &lang);
+    try std.testing.expectEqual(@as(u64, 4), result.lines);
+    try std.testing.expectEqual(@as(u64, 3), result.code);
+    try std.testing.expectEqual(@as(u64, 1), result.comments);
+}
+
+test "countLines ada dash dash comment" {
+    const lang = langs.Language{ .name = "Ada", .extensions = &.{}, .line_comment = "--" };
+    const source =
+        \\procedure Foo is
+        \\-- comment
+        \\begin null; end
+    ;
+    const result = countLines(source, &lang);
+    try std.testing.expectEqual(@as(u64, 3), result.lines);
+    try std.testing.expectEqual(@as(u64, 2), result.code);
+    try std.testing.expectEqual(@as(u64, 1), result.comments);
+}
+
+test "countLines terraform hash and block" {
+    const lang = langs.Language{
+        .name = "Terraform",
+        .extensions = &.{},
+        .line_comment = "#",
+        .block_comment_open = "/*",
+        .block_comment_close = "*/",
+    };
+    const source =
+        \\resource "x" "y" {
+        \\  # line comment
+        \\  /* block comment */
+        \\  name = "test"
+        \\}
+    ;
+    const result = countLines(source, &lang);
+    try std.testing.expectEqual(@as(u64, 5), result.lines);
+    try std.testing.expectEqual(@as(u64, 3), result.code);
+    try std.testing.expectEqual(@as(u64, 2), result.comments);
 }

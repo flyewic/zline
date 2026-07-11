@@ -7,34 +7,12 @@ const table = @import("table.zig");
 
 const FileEntry = zline.walker.FileEntry;
 
-const Progress = struct {
-    done: std.atomic.Value(usize),
-    total: usize,
-    finished: std.atomic.Value(bool),
-
-    fn init(total: usize) Progress {
-        return .{
-            .done = std.atomic.Value(usize).init(0),
-            .total = total,
-            .finished = std.atomic.Value(bool).init(false),
-        };
-    }
-
-    fn inc(self: *Progress) void {
-        _ = self.done.fetchAdd(1, .monotonic);
-    }
-
-    fn finish(self: *Progress) void {
-        self.finished.store(true, .release);
-    }
-};
-
 const ChunkResult = struct {
     counts: zline.walker.CountsByLang,
     arena: std.heap.ArenaAllocator,
 };
 
-fn countChunk(entries: []const FileEntry, io: Io, progress: *Progress, gpa: std.mem.Allocator) ChunkResult {
+fn countChunk(entries: []const FileEntry, io: Io, thread_idx: usize, thread_counts: []std.atomic.Value(usize), gpa: std.mem.Allocator) ChunkResult {
     var arena = std.heap.ArenaAllocator.init(gpa);
     const allocator = arena.allocator();
     var counts = zline.walker.CountsByLang.init(allocator);
@@ -44,7 +22,7 @@ fn countChunk(entries: []const FileEntry, io: Io, progress: *Progress, gpa: std.
             var ew = Io.File.writer(Io.File.stderr(), io, &buf2);
             ew.interface.print("warning: {s}: {s}\n", .{ fe.path, @errorName(err) }) catch {};
             ew.flush() catch {};
-            progress.inc();
+            _ = thread_counts[thread_idx].fetchAdd(1, .monotonic);
             continue;
         };
         const gop = counts.getOrPut(fe.lang.name) catch {
@@ -52,7 +30,7 @@ fn countChunk(entries: []const FileEntry, io: Io, progress: *Progress, gpa: std.
             var ew = Io.File.writer(Io.File.stderr(), io, &buf2);
             ew.interface.print("warning: out of memory for {s}\n", .{fe.lang.name}) catch {};
             ew.flush() catch {};
-            progress.inc();
+            _ = thread_counts[thread_idx].fetchAdd(1, .monotonic);
             continue;
         };
         if (gop.found_existing) {
@@ -64,7 +42,7 @@ fn countChunk(entries: []const FileEntry, io: Io, progress: *Progress, gpa: std.
         } else {
             gop.value_ptr.* = fc;
         }
-        progress.inc();
+        _ = thread_counts[thread_idx].fetchAdd(1, .monotonic);
     }
     return .{ .counts = counts, .arena = arena };
 }
@@ -73,25 +51,32 @@ const ThreadArg = struct {
     entries: []const FileEntry,
     out: *ChunkResult,
     io: Io,
-    progress: *Progress,
+    thread_idx: usize,
+    thread_counts: []std.atomic.Value(usize),
     gpa: std.mem.Allocator,
 };
 
-fn reportProgress(io: Io, progress: *Progress) void {
+fn reportProgress(io: Io, total: usize, finished: *std.atomic.Value(bool), thread_counts: []std.atomic.Value(usize)) void {
     var buf: [256]u8 = undefined;
     var writer = Io.File.writer(Io.File.stderr(), io, &buf);
     const w = &writer.interface;
 
-    while (!progress.finished.load(.acquire)) {
-        const done = progress.done.load(.acquire);
-        const pct = if (progress.total > 0) done * 100 / progress.total else 0;
-        w.print("\rCounting files... [{d}/{d}] {d}%", .{ done, progress.total, pct }) catch {};
+    while (!finished.load(.acquire)) {
+        var done: usize = 0;
+        for (thread_counts) |*tc| {
+            done += tc.load(.acquire);
+        }
+        const pct = if (total > 0) done * 100 / total else 0;
+        w.print("\rCounting files... [{d}/{d}] {d}%", .{ done, total, pct }) catch {};
         w.flush() catch {};
         Io.sleep(io, Io.Duration.fromMilliseconds(50), .awake) catch break;
     }
 
-    const done = progress.done.load(.acquire);
-    w.print("\rCounting files... [{d}/{d}] 100%\n", .{ done, progress.total }) catch {};
+    var done: usize = 0;
+    for (thread_counts) |*tc| {
+        done += tc.load(.acquire);
+    }
+    w.print("\rCounting files... [{d}/{d}] 100%\n", .{ done, total }) catch {};
     w.flush() catch {};
 }
 
@@ -109,14 +94,13 @@ fn isArchive(path: []const u8) bool {
     return false;
 }
 
-fn extractArchive(arena: std.mem.Allocator, init: std.process.Init, io: Io, path: []const u8) ![]const u8 {
-    _ = init;
+fn extractArchive(arena: std.mem.Allocator, io: Io, path: []const u8) ![]const u8 {
     const ts = Io.Timestamp.now(io, .awake).nanoseconds;
     var rng = std.Random.DefaultPrng.init(@intCast(ts));
     var tmp_buf: [64]u8 = undefined;
     const tmp_name = try std.fmt.bufPrint(&tmp_buf, "zline-{x}", .{rng.random().int(u32)});
     const tmp_dir = try std.fs.path.join(arena, &.{ "/tmp", tmp_name });
-    Io.Dir.createDirPath(Io.Dir.cwd(), io, tmp_dir) catch {};
+    try Io.Dir.createDirPath(Io.Dir.cwd(), io, tmp_dir);
 
     if (std.mem.endsWith(u8, path, ".zip") or std.mem.endsWith(u8, path, ".whl")) {
         _ = try std.process.run(arena, io, .{ .argv = &.{ "unzip", "-q", "-o", path, "-d", tmp_dir } });
@@ -185,7 +169,7 @@ fn run(init: std.process.Init, gpa: std.mem.Allocator) !void {
     var cleanup_path: ?[]const u8 = null;
     defer if (cleanup_path) |cp| cleanupDir(io, cp);
     if (isArchive(parsed_args.path)) {
-        scan_path = extractArchive(arena, init, io, parsed_args.path) catch |err| {
+        scan_path = extractArchive(arena, io, parsed_args.path) catch |err| {
             var ebuf: [256]u8 = undefined;
             var ew = Io.File.writer(Io.File.stderr(), io, &ebuf);
             ew.interface.print("error: cannot extract {s}: {s}\n", .{ parsed_args.path, @errorName(err) }) catch {};
@@ -228,12 +212,16 @@ fn run(init: std.process.Init, gpa: std.mem.Allocator) !void {
 
     const threads = try arena.alloc(std.Thread, n_chunks - 1);
     const results = try arena.alloc(ChunkResult, n_chunks);
+    const thread_counts = try arena.alloc(std.atomic.Value(usize), n_chunks);
+    for (thread_counts) |*tc| {
+        tc.* = std.atomic.Value(usize).init(0);
+    }
 
-    var progress = Progress.init(entries.len);
+    var finished: std.atomic.Value(bool) = std.atomic.Value(bool).init(false);
 
-    const reporter = try std.Thread.spawn(.{}, reportProgress, .{ io, &progress });
+    const reporter = try std.Thread.spawn(.{}, reportProgress, .{ io, entries.len, &finished, thread_counts });
 
-    const Run = struct { fn f(arg: *ThreadArg) void { arg.out.* = countChunk(arg.entries, arg.io, arg.progress, arg.gpa); } };
+    const Run = struct { fn f(arg: *ThreadArg) void { arg.out.* = countChunk(arg.entries, arg.io, arg.thread_idx, arg.thread_counts, arg.gpa); } };
 
     var i: usize = 0;
     var chunk_i: usize = 0;
@@ -242,10 +230,10 @@ fn run(init: std.process.Init, gpa: std.mem.Allocator) !void {
         const end = @min(i + chunk_size, entries.len);
 
         if (chunk_i == n_chunks - 1) {
-            results[chunk_i] = countChunk(entries[i..end], io, &progress, gpa);
+            results[chunk_i] = countChunk(entries[i..end], io, chunk_i, thread_counts, gpa);
         } else {
             const ta = try arena.create(ThreadArg);
-            ta.* = .{ .entries = entries[i..end], .out = &results[chunk_i], .io = io, .progress = &progress, .gpa = gpa };
+            ta.* = .{ .entries = entries[i..end], .out = &results[chunk_i], .io = io, .thread_idx = chunk_i, .thread_counts = thread_counts, .gpa = gpa };
             threads[threads_spawned] = try std.Thread.spawn(.{}, Run.f, .{ta});
             threads_spawned += 1;
         }
@@ -256,7 +244,7 @@ fn run(init: std.process.Init, gpa: std.mem.Allocator) !void {
         t.join();
     }
 
-    progress.finish();
+    finished.store(true, .release);
     reporter.join();
     const t2 = Io.Timestamp.now(io, .awake).nanoseconds;
 

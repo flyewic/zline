@@ -122,6 +122,12 @@ pub fn printResults(io: Io, totals: zline.walker.CountsByLang, sort_by: cli.Sort
     var comments_width: usize = "Comments".len;
     var blanks_width: usize = "Blanks".len;
 
+    var total_files: u64 = 0;
+    var total_lines: u64 = 0;
+    var total_code: u64 = 0;
+    var total_comments: u64 = 0;
+    var total_blanks: u64 = 0;
+
     for (sorted.items) |entry| {
         const c = entry.value_ptr;
         if (c.language.name.len > lang_width) lang_width = c.language.name.len;
@@ -130,15 +136,7 @@ pub fn printResults(io: Io, totals: zline.walker.CountsByLang, sort_by: cli.Sort
         if (digitCount(c.code) > code_width) code_width = digitCount(c.code);
         if (digitCount(c.comments) > comments_width) comments_width = digitCount(c.comments);
         if (digitCount(c.blanks) > blanks_width) blanks_width = digitCount(c.blanks);
-    }
 
-    var total_files: u64 = 0;
-    var total_lines: u64 = 0;
-    var total_code: u64 = 0;
-    var total_comments: u64 = 0;
-    var total_blanks: u64 = 0;
-    for (sorted.items) |entry| {
-        const c = entry.value_ptr;
         total_files += c.files;
         total_lines += c.lines;
         total_code += c.code;
@@ -171,11 +169,12 @@ pub fn printResults(io: Io, totals: zline.walker.CountsByLang, sort_by: cli.Sort
     const sep_str = "─";
     const sep_bytes = sep_chars * sep_str.len;
     var sep_buf: [4096]u8 = undefined;
+    const draw_bytes = @min(sep_bytes, sep_buf.len);
     var pos: usize = 0;
-    while (pos < sep_bytes) : (pos += sep_str.len)
+    while (pos < draw_bytes) : (pos += sep_str.len)
         @memcpy(sep_buf[pos..][0..sep_str.len], sep_str);
 
-    try w.writeAll(sep_buf[0..sep_bytes]);
+    try w.writeAll(sep_buf[0..draw_bytes]);
     try w.writeByte('\n');
 
     for (sorted.items) |entry| {
