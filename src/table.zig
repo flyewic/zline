@@ -103,7 +103,7 @@ pub fn printResults(io: Io, totals: zline.walker.CountsByLang, sort_by: cli.Sort
         sort_by: cli.SortBy,
         fn lessThan(self: @This(), a: zline.walker.CountsByLang.Entry, b: zline.walker.CountsByLang.Entry) bool {
             switch (self.sort_by) {
-                .name => return std.mem.order(u8, a.key_ptr.*, b.key_ptr.*) == .lt,
+                .name => return std.mem.order(u8, a.value_ptr.language.name, b.value_ptr.language.name) == .lt,
                 .files => return b.value_ptr.files < a.value_ptr.files,
                 .lines => return b.value_ptr.lines < a.value_ptr.lines,
                 .code => return b.value_ptr.code < a.value_ptr.code,

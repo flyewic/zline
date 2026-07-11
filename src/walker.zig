@@ -3,7 +3,7 @@ const Io = std.Io;
 const langs = @import("langs.zig");
 const counter = @import("counter.zig");
 
-pub const CountsByLang = std.StringHashMap(counter.FileCount);
+pub const CountsByLang = std.AutoHashMap(*const langs.Language, counter.FileCount);
 
 pub const FileEntry = struct {
     path: []const u8,

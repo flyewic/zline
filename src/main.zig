@@ -25,7 +25,7 @@ fn countChunk(entries: []const FileEntry, io: Io, thread_idx: usize, thread_coun
             _ = thread_counts[thread_idx].fetchAdd(1, .monotonic);
             continue;
         };
-        const gop = counts.getOrPut(fe.lang.name) catch {
+        const gop = counts.getOrPut(fe.lang) catch {
             var buf2: [256]u8 = undefined;
             var ew = Io.File.writer(Io.File.stderr(), io, &buf2);
             ew.interface.print("warning: out of memory for {s}\n", .{fe.lang.name}) catch {};
