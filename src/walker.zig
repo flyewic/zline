@@ -27,7 +27,13 @@ pub fn collectFiles(allocator: std.mem.Allocator, io: Io, dir_path: []const u8) 
     var walker = try Io.Dir.walk(dir, allocator);
     defer walker.deinit();
 
-    while (try walker.next(io)) |entry| {
+    while (true) {
+        const maybe_entry = walker.next(io) catch {
+            walker.leave(io);
+            continue;
+        };
+        const entry = maybe_entry orelse break;
+
         if (entry.kind == .directory) {
             if (isHidden(entry.path)) {
                 walker.leave(io);

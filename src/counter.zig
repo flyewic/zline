@@ -49,7 +49,7 @@ pub fn countLines(contents: []const u8, lang: *const langs.Language) FileCount {
         if (lang.block_comment_open) |open| {
             if (lang.block_comment_close) |close| {
                 if (std.mem.indexOf(u8, line, open)) |idx| {
-                    const before = std.mem.trim(u8, line[0..idx], " \t");
+                    const before = std.mem.trim(u8, line[0..idx], " \t\r");
                     if (before.len == 0) {
                         result.comments += 1;
                         if (std.mem.indexOf(u8, line, close) == null) {
@@ -64,7 +64,7 @@ pub fn countLines(contents: []const u8, lang: *const langs.Language) FileCount {
         if (lang.line_comment) |lc| {
             if (lc.len > 0) {
                 if (std.mem.indexOf(u8, line, lc)) |idx| {
-                    const before = std.mem.trim(u8, line[0..idx], " \t");
+                    const before = std.mem.trim(u8, line[0..idx], " \t\r");
                     if (before.len == 0) {
                         result.comments += 1;
                         continue;
