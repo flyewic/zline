@@ -143,7 +143,7 @@ fn run(init: std.process.Init, gpa: std.mem.Allocator) !void {
         w.flush() catch {};
     }
 
-    const entries = zline.walker.collectFiles(arena, io, parsed_args.path) catch |err| {
+    const entries = zline.walker.collectFiles(arena, io, parsed_args.path, parsed_args.hidden) catch |err| {
         var ebuf: [256]u8 = undefined;
         var ew = Io.File.writer(Io.File.stderr(), io, &ebuf);
         ew.interface.print("error: {s}: {s}\n", .{ parsed_args.path, @errorName(err) }) catch {};

@@ -8,6 +8,7 @@ pub const Args = struct {
     sort_by: SortBy = .name,
     jobs: ?usize = null,
     fields: []const Field = &.{},
+    hidden: bool = false,
 };
 
 pub const SortBy = enum {
@@ -91,6 +92,8 @@ pub fn parseArgs(arena: std.mem.Allocator, args: []const []const u8) !Args {
             i += 1;
             if (i >= args.len) return error.MissingArgument;
             result.fields = try parseFields(arena, args[i]);
+        } else if (std.mem.eql(u8, arg, "--hidden")) {
+            result.hidden = true;
         } else if (std.mem.startsWith(u8, arg, "-")) {
             return error.UnknownFlag;
         } else {
@@ -119,16 +122,19 @@ pub fn printHelp(io: Io) void {
         \\  -j, --jobs N         Number of parallel jobs (default: CPU count)
         \\  --sort FIELD         Sort output by: name, files, lines, code, comments, blanks (default: name)
         \\  --fields FIELDS      Comma-separated columns to show: language, files, lines, code, comments, blanks
+        \\  --hidden             Include hidden files and directories
     , .{}) catch {};
     w.print("\n", .{}) catch {};
     w.flush() catch {};
 }
 
+pub const version = "0.1.0";
+
 pub fn printVersion(io: Io) void {
     var buf: [64]u8 = undefined;
     var writer = Io.File.writer(Io.File.stdout(), io, &buf);
     const w = &writer.interface;
-    w.print("zline 0.1.0\n", .{}) catch {};
+    w.print("zline {s}\n", .{version}) catch {};
     w.flush() catch {};
 }
 

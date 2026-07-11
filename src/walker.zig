@@ -14,7 +14,7 @@ fn isHidden(name: []const u8) bool {
     return std.mem.startsWith(u8, name, ".") and !std.mem.eql(u8, name, "..") and !std.mem.eql(u8, name, ".");
 }
 
-pub fn collectFiles(allocator: std.mem.Allocator, io: Io, dir_path: []const u8) ![]FileEntry {
+pub fn collectFiles(allocator: std.mem.Allocator, io: Io, dir_path: []const u8, include_hidden: bool) ![]FileEntry {
     var entries: std.ArrayList(FileEntry) = .empty;
 
     var ext_map = try langs.buildExtensionMap(allocator);
@@ -35,11 +35,14 @@ pub fn collectFiles(allocator: std.mem.Allocator, io: Io, dir_path: []const u8) 
         const entry = maybe_entry orelse break;
 
         if (entry.kind == .directory) {
-            if (isHidden(entry.path)) {
+            if (!include_hidden and isHidden(std.fs.path.basename(entry.path))) {
                 walker.leave(io);
                 continue;
             }
         } else if (entry.kind == .file) {
+            if (!include_hidden and isHidden(std.fs.path.basename(entry.path))) {
+                continue;
+            }
             const ext = std.fs.path.extension(entry.path);
             const basename = std.fs.path.basename(entry.path);
 
