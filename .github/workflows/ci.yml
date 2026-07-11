@@ -25,8 +25,20 @@ jobs:
           zig build
           ./zig-out/bin/zline src/
 
-  release:
+  draft-release:
     needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create ${{ github.ref_name }} --draft --title "${{ github.ref_name }}"
+
+  build-assets:
+    needs: draft-release
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -39,7 +51,6 @@ jobs:
           - x86_64-windows
           - aarch64-linux
           - aarch64-macos
-
     steps:
       - uses: actions/checkout@v4
 
@@ -56,12 +67,25 @@ jobs:
             sha256sum "$f" | cut -d' ' -f1 > "$f.sha256"
           done
 
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: zig-out/bin/zline-${{ matrix.target }}*
+      - name: Upload assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload ${{ github.ref_name }} zig-out/bin/zline-${{ matrix.target }}*
+
+  publish:
+    needs: build-assets
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit ${{ github.ref_name }} --draft=false
 
   packaging:
-    needs: release
+    needs: publish
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
