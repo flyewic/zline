@@ -2,8 +2,6 @@ const std = @import("std");
 const builtin = @import("builtin");
 const Io = std.Io;
 const zline = @import("zline");
-const cli = @import("cli.zig");
-const table = @import("table.zig");
 
 const FileEntry = zline.walker.FileEntry;
 
@@ -124,18 +122,18 @@ fn run(init: std.process.Init, gpa: std.mem.Allocator) !void {
     const io = init.io;
     const args = try init.minimal.args.toSlice(arena);
 
-    const parsed_args = cli.parseArgs(arena, args) catch |err| {
+    const parsed_args = zline.cli.parseArgs(arena, args) catch |err| {
         std.debug.print("error: {s}\n\n", .{@errorName(err)});
-        cli.printHelp(io);
+        zline.cli.printHelp(io);
         return;
     };
 
     if (parsed_args.help) {
-        cli.printHelp(io);
+        zline.cli.printHelp(io);
         return;
     }
     if (parsed_args.version) {
-        cli.printVersion(io);
+        zline.cli.printVersion(io);
         return;
     }
 
@@ -245,19 +243,19 @@ fn run(init: std.process.Init, gpa: std.mem.Allocator) !void {
     defer for (deferred_arenas) |*a| a.deinit();
 
     const show_fields = fields: {
-        if (parsed_args.fields.len == 0) break :fields &cli.all_fields;
+        if (parsed_args.fields.len == 0) break :fields &zline.cli.all_fields;
 
         const has_language = for (parsed_args.fields) |f| {
             if (f == .language) break true;
         } else false;
         if (has_language) break :fields parsed_args.fields;
 
-        const result = try arena.alloc(cli.Field, parsed_args.fields.len + 1);
+        const result = try arena.alloc(zline.cli.Field, parsed_args.fields.len + 1);
         result[0] = .language;
         @memcpy(result[1..][0..parsed_args.fields.len], parsed_args.fields);
         break :fields result;
     };
-    try table.printResults(io, totals, parsed_args.sort_by,
+    try zline.table.printResults(io, totals, parsed_args.sort_by,
         @as(u64, @intCast(t1 - t0)), @as(u64, @intCast(t2 - t1)), show_fields, gpa);
 }
 
