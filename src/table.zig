@@ -170,7 +170,7 @@ pub fn printResults(io: Io, totals: zline.walker.CountsByLang, sort_by: cli.Sort
     }
     const sep_str = "─";
     const sep_bytes = sep_chars * sep_str.len;
-    var sep_buf: [1024]u8 = undefined;
+    var sep_buf: [4096]u8 = undefined;
     var pos: usize = 0;
     while (pos < sep_bytes) : (pos += sep_str.len)
         @memcpy(sep_buf[pos..][0..sep_str.len], sep_str);

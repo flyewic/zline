@@ -157,7 +157,7 @@ pub const languages = [_]Language{
     L(doubleDashCBlock, "PL/SQL", &.{ ".pks", ".pkb" }),
 
     L(semicolonStyle, "Clojure", &.{ ".clj", ".cljs", ".cljc", ".edn" }),
-    L(semicolonStyle, "Lisp", &.{ ".lisp", ".lsp", ".cl" }),
+    L(semicolonStyle, "Lisp", &.{ ".lisp", ".lsp" }),
     L(semicolonStyle, "Scheme", &.{ ".scm", ".ss" }),
     L(semicolonStyle, "Assembly", &.{ ".asm", ".s", ".S" }),
     L(semicolonStyle, "INI", &.{ ".ini" }),
