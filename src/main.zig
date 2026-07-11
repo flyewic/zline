@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const Io = std.Io;
 const zline = @import("zline");
 const cli = @import("cli.zig");
@@ -33,8 +34,8 @@ const ChunkResult = struct {
     arena: std.heap.ArenaAllocator,
 };
 
-fn countChunk(entries: []const FileEntry, io: Io, progress: *Progress) ChunkResult {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+fn countChunk(entries: []const FileEntry, io: Io, progress: *Progress, gpa: std.mem.Allocator) ChunkResult {
+    var arena = std.heap.ArenaAllocator.init(gpa);
     const allocator = arena.allocator();
     var counts = zline.walker.CountsByLang.init(allocator);
     for (entries) |fe| {
@@ -73,6 +74,7 @@ const ThreadArg = struct {
     out: *ChunkResult,
     io: Io,
     progress: *Progress,
+    gpa: std.mem.Allocator,
 };
 
 fn reportProgress(io: Io, progress: *Progress) void {
@@ -94,9 +96,27 @@ fn reportProgress(io: Io, progress: *Progress) void {
 }
 
 pub fn main(init: std.process.Init) !void {
-    const arena = init.arena.allocator();
-    const args = try init.minimal.args.toSlice(arena);
+    if (builtin.mode == .Debug) {
+        var debug: std.heap.DebugAllocator(.{ .thread_safe = true }) = .init;
+        const gpa = debug.allocator();
+        defer {
+            const check = debug.deinit();
+            if (check == .leak) @panic("memory leak detected");
+        }
+        std.debug.print("debug: leak detection enabled\n", .{});
+        try run(init, gpa);
+    } else {
+        try run(init, std.heap.page_allocator);
+    }
+}
+
+fn run(init: std.process.Init, gpa: std.mem.Allocator) !void {
+    var main_arena = std.heap.ArenaAllocator.init(gpa);
+    defer main_arena.deinit();
+    const arena = main_arena.allocator();
+
     const io = init.io;
+    const args = try init.minimal.args.toSlice(arena);
 
     const parsed_args = cli.parseArgs(arena, args) catch |err| {
         std.debug.print("error: {s}\n\n", .{@errorName(err)});
@@ -161,6 +181,8 @@ pub fn main(init: std.process.Init) !void {
 
     const reporter = try std.Thread.spawn(.{}, reportProgress, .{ io, &progress });
 
+    const Run = struct { fn f(arg: *ThreadArg) void { arg.out.* = countChunk(arg.entries, arg.io, arg.progress, arg.gpa); } };
+
     var i: usize = 0;
     var chunk_i: usize = 0;
     var threads_spawned: usize = 0;
@@ -168,13 +190,11 @@ pub fn main(init: std.process.Init) !void {
         const end = @min(i + chunk_size, entries.len);
 
         if (chunk_i == n_chunks - 1) {
-            results[chunk_i] = countChunk(entries[i..end], io, &progress);
+            results[chunk_i] = countChunk(entries[i..end], io, &progress, gpa);
         } else {
             const ta = try arena.create(ThreadArg);
-            ta.* = .{ .entries = entries[i..end], .out = &results[chunk_i], .io = io, .progress = &progress };
-            threads[threads_spawned] = try std.Thread.spawn(.{}, struct {
-                fn run(arg: *ThreadArg) void { arg.out.* = countChunk(arg.entries, arg.io, arg.progress); }
-            }.run, .{ta});
+            ta.* = .{ .entries = entries[i..end], .out = &results[chunk_i], .io = io, .progress = &progress, .gpa = gpa };
+            threads[threads_spawned] = try std.Thread.spawn(.{}, Run.f, .{ta});
             threads_spawned += 1;
         }
         i = end;
@@ -224,5 +244,5 @@ pub fn main(init: std.process.Init) !void {
         break :fields try list.toOwnedSlice(arena);
     };
     try table.printResults(io, totals, parsed_args.sort_by,
-        @as(u64, @intCast(t1 - t0)), @as(u64, @intCast(t2 - t1)), show_fields);
+        @as(u64, @intCast(t1 - t0)), @as(u64, @intCast(t2 - t1)), show_fields, gpa);
 }

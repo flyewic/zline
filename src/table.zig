@@ -84,11 +84,11 @@ fn writeResultRow(w: anytype, fields: []const cli.Field, widths: []const usize, 
     try w.writeByte('\n');
 }
 
-pub fn printResults(io: Io, totals: zline.walker.CountsByLang, sort_by: cli.SortBy, scan_ns: u64, count_ns: u64, fields: []const cli.Field) !void {
+pub fn printResults(io: Io, totals: zline.walker.CountsByLang, sort_by: cli.SortBy, scan_ns: u64, count_ns: u64, fields: []const cli.Field, gpa: std.mem.Allocator) !void {
     const entry_count = totals.count();
     if (entry_count == 0) return;
 
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = std.heap.ArenaAllocator.init(gpa);
     defer arena.deinit();
     const allocator = arena.allocator();
 
