@@ -194,6 +194,6 @@ jobs:
       - uses: peter-evans/create-pull-request@v7
         with:
           title: "chore: update packaging for ${{ github.ref_name }}"
-          commit-message: "chore: update packaging for ${{ github.ref_name }}"
+          commit-message: "chore: update packaging for ${{ github.ref_name }} [skip ci]"
           branch: packaging/${{ github.ref_name }}
           delete-branch: true
