@@ -160,7 +160,7 @@ pub fn printHelp(io: Io) void {
     w.flush() catch {};
 }
 
-pub const version = "0.3.4";
+pub const version = "0.4.0";
 
 pub fn printVersion(io: Io) void {
     var buf: [64]u8 = undefined;
