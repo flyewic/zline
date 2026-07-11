@@ -28,6 +28,7 @@ fn writeCellRJustNum(w: anytype, n: u64, width: usize) !void {
 }
 
 fn digitCount(n: u64) usize {
+    if (n == 0) return 1;
     return std.math.log10_int(n) + 1;
 }
 
