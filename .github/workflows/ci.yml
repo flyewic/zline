@@ -33,17 +33,12 @@ jobs:
       contents: write
     strategy:
       matrix:
-        include:
-          - target: x86_64-linux
-            ext: ""
-          - target: x86_64-macos
-            ext: ""
-          - target: x86_64-windows
-            ext: ".exe"
-          - target: aarch64-linux
-            ext: ""
-          - target: aarch64-macos
-            ext: ""
+        target:
+          - x86_64-linux
+          - x86_64-macos
+          - x86_64-windows
+          - aarch64-linux
+          - aarch64-macos
 
     steps:
       - uses: actions/checkout@v4
@@ -53,11 +48,8 @@ jobs:
           version: 0.16.0
 
       - name: Build
-        run: zig build -Doptimize=ReleaseSmall -Dtarget=${{ matrix.target }}
-
-      - name: Rename artifact
-        run: mv zig-out/bin/zline${{ matrix.ext }} zline-${{ matrix.target }}${{ matrix.ext }}
+        run: zig build -Doptimize=ReleaseSmall -Dtarget=${{ matrix.target }} -Dname=zline-${{ matrix.target }}
 
       - uses: softprops/action-gh-release@v2
         with:
-          files: zline-${{ matrix.target }}${{ matrix.ext }}
+          files: zig-out/bin/zline-${{ matrix.target }}*
