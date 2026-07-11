@@ -71,16 +71,10 @@ fn reportProgress(io: Io, total: usize, finished: *std.atomic.Value(bool), threa
 }
 
 fn isArchive(path: []const u8) bool {
-    if (std.mem.endsWith(u8, path, ".tar.gz")) return true;
-    if (std.mem.endsWith(u8, path, ".tar.bz2")) return true;
-    if (std.mem.endsWith(u8, path, ".tar.xz")) return true;
-    if (std.mem.endsWith(u8, path, ".tgz")) return true;
-    if (std.mem.endsWith(u8, path, ".tbz2")) return true;
-    if (std.mem.endsWith(u8, path, ".txz")) return true;
-    if (std.mem.endsWith(u8, path, ".zip")) return true;
-    if (std.mem.endsWith(u8, path, ".whl")) return true;
-    if (std.mem.endsWith(u8, path, ".deb")) return true;
-    if (std.mem.endsWith(u8, path, ".tar")) return true;
+    const exts = [_][]const u8{ ".tar.gz", ".tar.bz2", ".tar.xz", ".tgz", ".tbz2", ".txz", ".zip", ".whl", ".deb", ".tar" };
+    for (exts) |ext| {
+        if (std.mem.endsWith(u8, path, ext)) return true;
+    }
     return false;
 }
 
