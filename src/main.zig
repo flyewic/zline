@@ -238,10 +238,10 @@ fn run(init: std.process.Init, gpa: std.mem.Allocator) !void {
         } else false;
         if (has_language) break :fields parsed_args.fields;
 
-        var list = try std.ArrayList(cli.Field).initCapacity(arena, parsed_args.fields.len + 1);
-        list.appendAssumeCapacity(.language);
-        for (parsed_args.fields) |f| list.appendAssumeCapacity(f);
-        break :fields try list.toOwnedSlice(arena);
+        const result = try arena.alloc(cli.Field, parsed_args.fields.len + 1);
+        result[0] = .language;
+        @memcpy(result[1..][0..parsed_args.fields.len], parsed_args.fields);
+        break :fields result;
     };
     try table.printResults(io, totals, parsed_args.sort_by,
         @as(u64, @intCast(t1 - t0)), @as(u64, @intCast(t2 - t1)), show_fields, gpa);

@@ -89,8 +89,13 @@ pub fn countFile(allocator: std.mem.Allocator, io: Io, path: []const u8, lang: *
     }
 
     const size = std.math.cast(usize, stat.size) orelse return error.FileTooLarge;
-    const contents = try allocator.alloc(u8, size);
-    defer allocator.free(contents);
+    var stack_buf: [16384]u8 = undefined;
+    const on_heap = size > stack_buf.len;
+    const contents: []u8 = if (on_heap)
+        try allocator.alloc(u8, size)
+    else
+        stack_buf[0..size];
+    defer if (on_heap) allocator.free(contents);
 
     const bytes_read = try Io.File.readPositionalAll(file, io, contents, 0);
     return countLines(contents[0..bytes_read], lang);

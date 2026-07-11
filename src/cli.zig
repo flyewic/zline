@@ -42,7 +42,8 @@ fn parseSortBy(s: []const u8) !SortBy {
 }
 
 fn parseFields(allocator: std.mem.Allocator, s: []const u8) ![]const Field {
-    var list: std.ArrayList(Field) = .empty;
+    var fields: [6]Field = undefined;
+    var count: usize = 0;
     var it = std.mem.splitScalar(u8, s, ',');
     while (it.next()) |token| {
         const trimmed = std.mem.trim(u8, token, " ");
@@ -62,12 +63,18 @@ fn parseFields(allocator: std.mem.Allocator, s: []const u8) ![]const Field {
             return error.InvalidField;
 
         var dup = false;
-        for (list.items) |existing| {
+        for (fields[0..count]) |existing| {
             if (existing == field) dup = true;
         }
-        if (!dup) try list.append(allocator, field);
+        if (!dup) {
+            if (count >= fields.len) return error.TooManyFields;
+            fields[count] = field;
+            count += 1;
+        }
     }
-    return list.toOwnedSlice(allocator);
+    const result = try allocator.alloc(Field, count);
+    @memcpy(result, fields[0..count]);
+    return result;
 }
 
 pub fn parseArgs(arena: std.mem.Allocator, args: []const []const u8) !Args {
