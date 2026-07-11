@@ -14,6 +14,18 @@ fn isHidden(name: []const u8) bool {
     return std.mem.startsWith(u8, name, ".") and !std.mem.eql(u8, name, "..") and !std.mem.eql(u8, name, ".");
 }
 
+fn readFileHeader(io: Io, dir_path: []const u8, rel_path: []const u8, buf: []u8) ![]u8 {
+    var path_buf: [4096]u8 = undefined;
+    const full_path = if (dir_path.len > 0 and dir_path[dir_path.len - 1] == '/')
+        try std.fmt.bufPrint(&path_buf, "{s}{s}", .{ dir_path, rel_path })
+    else
+        try std.fmt.bufPrint(&path_buf, "{s}/{s}", .{ dir_path, rel_path });
+    const file = try Io.Dir.openFile(Io.Dir.cwd(), io, full_path, .{ .mode = .read_only });
+    defer Io.File.close(file, io);
+    const n = try Io.File.readPositionalAll(file, io, buf, 0);
+    return buf[0..n];
+}
+
 pub fn collectFiles(allocator: std.mem.Allocator, io: Io, dir_path: []const u8, include_hidden: bool) ![]FileEntry {
     var entries: std.ArrayList(FileEntry) = .empty;
 
@@ -46,8 +58,22 @@ pub fn collectFiles(allocator: std.mem.Allocator, io: Io, dir_path: []const u8, 
             const ext = std.fs.path.extension(entry.path);
             const basename = std.fs.path.basename(entry.path);
 
-            const lang = langs.detectByExtension(ext, &ext_map) orelse
-                langs.detectByExtension(basename, &ext_map);
+            const lang = blk: {
+                if (langs.detect(ext, basename, &ext_map)) |info| {
+                    switch (info) {
+                        .unique => |l| break :blk l,
+                        .ambiguous => |amb| {
+                            var hdr: [1024]u8 = undefined;
+                            const hdr_cont = readFileHeader(io, dir_path, entry.path, &hdr) catch break :blk amb.fallback;
+                            break :blk langs.resolve(info, hdr_cont);
+                        },
+                    }
+                }
+
+                var hdr: [1024]u8 = undefined;
+                const hdr_cont = readFileHeader(io, dir_path, entry.path, &hdr) catch break :blk null;
+                break :blk langs.shebangDetect(hdr_cont);
+            };
 
             if (lang) |l| {
                 const full_path = try std.fs.path.join(allocator, &.{ dir_path, entry.path });
