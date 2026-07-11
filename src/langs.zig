@@ -111,7 +111,7 @@ pub const languages = [_]Language{
     L(cStyle, "HLSL", &.{ ".hlsl", ".fx", ".fxh", ".hlsli" }),
     L(cStyle, "Haxe", &.{ ".hx", ".hxml" }),
     L(cStyle, "ActionScript", &.{ ".as" }),
-    L(cStyle, "Gradle", &.{ ".gradle" }),
+    L(cStyle, "Gradle", &.{ ".gradle", ".gradle.kts" }),
     L(cStyle, "OpenCL", &.{ ".cl" }),
     L(cStyle, "Pony", &.{ ".pony" }),
     L(cStyle, "TTCN-3", &.{ ".ttcn", ".ttcn3" }),
@@ -132,13 +132,22 @@ pub const languages = [_]Language{
     L(cStyle, "Pkl", &.{ ".pkl" }),
     L(cStyle, "Prisma", &.{ ".prisma" }),
     L(cStyle, "Slint", &.{ ".slint" }),
+    L(cStyle, "Templ", &.{ ".templ" }),
+    L(cStyle, "ReScript", &.{ ".res", ".resi" }),
+    L(cStyle, "Gleam", &.{ ".gleam" }),
+    L(cStyle, "SurrealQL", &.{ ".surql" }),
+    L(cStyle, "Ziggy", &.{ ".zos" }),
 
     L(hashStyle, "Python", &.{ ".py", ".pyw", ".pyi" }),
     L(hashStyle, "Ruby", &.{ ".rb", ".rake", ".gemspec", "Vagrantfile", "Gemfile" }),
     L(hashStyle, "Perl", &.{ ".pl", ".pm", ".plx", ".ph" }),
     L(hashStyle, "R", &.{ ".r", ".R", ".Rmd" }),
     L(hashStyle, "Elixir", &.{ ".ex", ".exs" }),
-    L(hashStyle, "Shell", &.{ ".sh", ".bash", ".zsh", ".fish", ".ksh", ".csh" }),
+    L(hashStyle, "Bash", &.{ ".sh", ".bash" }),
+    L(hashStyle, "Zsh", &.{ ".zsh" }),
+    L(hashStyle, "Fish", &.{ ".fish" }),
+    L(hashStyle, "Ksh", &.{ ".ksh" }),
+    L(hashStyle, "Csh", &.{ ".csh" }),
     L(hashStyle, "Makefile", &.{ ".make", ".mk", "Makefile", "makefile", "GNUmakefile" }),
     L(hashStyle, "CMake", &.{ ".cmake", "CMakeLists.txt" }),
     L(hashStyle, "Dockerfile", &.{ "Dockerfile", "Containerfile", ".dockerfile" }),
@@ -150,11 +159,17 @@ pub const languages = [_]Language{
     L(hashStyle, "Starlark", &.{ ".bzl", "BUILD", "BUILD.bazel" }),
     L(hashStyle, "RON", &.{ ".ron" }),
     L(hashStyle, "Crystal", &.{ ".cr" }),
-    L(hashStyle, "Nim", &.{ ".nim", ".nims" }),
+    L(hashStyle, "Nim", &.{ ".nim", ".nims", ".nimble" }),
     L(hashStyle, "Tcl", &.{ ".tcl" }),
     L(hashStyle, "Awk", &.{ ".awk" }),
     L(hashStyle, "Raku", &.{ ".raku", ".rakumod" }),
     L(hashStyle, "CoffeeScript", &.{".coffee"}),
+    L(hashStyle, "Mojo", &.{ ".mojo" }),
+    L(hashStyle, "EEx", &.{ ".eex" }),
+    L(hashStyle, "HEEx", &.{ ".heex" }),
+    L(hashStyle, "Nickel", &.{ ".ncl" }),
+    L(hashStyle, "Nushell", &.{ ".nu" }),
+    L(hashStyle, "Meson", &.{ "meson.build" }),
     L(hashStyle, "Sage", &.{ ".sage" }),
     L(hashStyle, "Gnuplot", &.{ ".gp", ".gnuplot" }),
     L(hashStyle, "GDScript", &.{ ".gd" }),
@@ -169,6 +184,7 @@ pub const languages = [_]Language{
     L(hashStyle, "Twig", &.{ ".twig" }),
 
     L(hashCBlock, "Terraform", &.{ ".tf", ".tfvars" }),
+    L(hashCBlock, "HCL", &.{ ".hcl", ".nomad" }),
 
     L(doubleDashStyle, "Ada", &.{ ".adb", ".ads", ".ada" }),
     L(doubleDashStyle, "VHDL", &.{ ".vhd", ".vhdl" }),
@@ -195,6 +211,8 @@ pub const languages = [_]Language{
     L(htmlStyle, "Svelte", &.{ ".svelte" }),
     L(htmlStyle, "Vue", &.{ ".vue" }),
     L(htmlStyle, "Razor", &.{ ".cshtml", ".razor" }),
+    L(htmlStyle, "Astro", &.{ ".astro" }),
+    L(htmlStyle, "Ruby HTML", &.{ ".rhtml" }),
 
     L(cssStyle, "CSS", &.{ ".css", ".wxss" }),
 
@@ -365,10 +383,12 @@ const shebang_map = [_]struct { name: []const u8, lang_name: []const u8 }{
     .{ .name = "perl", .lang_name = "Perl" },
     .{ .name = "ruby", .lang_name = "Ruby" },
     .{ .name = "node", .lang_name = "JavaScript" },
-    .{ .name = "bash", .lang_name = "Shell" },
-    .{ .name = "sh", .lang_name = "Shell" },
-    .{ .name = "zsh", .lang_name = "Shell" },
-    .{ .name = "fish", .lang_name = "Shell" },
+    .{ .name = "bash", .lang_name = "Bash" },
+    .{ .name = "sh", .lang_name = "Bash" },
+    .{ .name = "zsh", .lang_name = "Zsh" },
+    .{ .name = "fish", .lang_name = "Fish" },
+    .{ .name = "ksh", .lang_name = "Ksh" },
+    .{ .name = "csh", .lang_name = "Csh" },
     .{ .name = "php", .lang_name = "PHP" },
     .{ .name = "lua", .lang_name = "Lua" },
     .{ .name = "julia", .lang_name = "Julia" },
@@ -606,8 +626,8 @@ test "ambiguous .vh disambiguation" {
 test "shebang detection" {
     try std.testing.expectEqualStrings("Python", shebangDetect("#!/usr/bin/python3\n").?.name);
     try std.testing.expectEqualStrings("Python", shebangDetect("#!/usr/bin/env python\n").?.name);
-    try std.testing.expectEqualStrings("Shell", shebangDetect("#!/bin/bash\n").?.name);
-    try std.testing.expectEqualStrings("Shell", shebangDetect("#!/bin/sh\n").?.name);
+    try std.testing.expectEqualStrings("Bash", shebangDetect("#!/bin/bash\n").?.name);
+    try std.testing.expectEqualStrings("Bash", shebangDetect("#!/bin/sh\n").?.name);
     try std.testing.expectEqualStrings("Perl", shebangDetect("#!/usr/bin/perl -w\n").?.name);
     try std.testing.expectEqualStrings("Ruby", shebangDetect("#!/usr/bin/env ruby\n").?.name);
     try std.testing.expectEqualStrings("JavaScript", shebangDetect("#!/usr/bin/env node\n").?.name);
@@ -682,4 +702,57 @@ test "detect returns null for unknown" {
     defer map.deinit();
 
     try std.testing.expect(detect(".wut", "unknown.wut", &map) == null);
+}
+
+test "ambiguous .cls disambiguation" {
+    var map = try buildExtensionMap(std.testing.allocator);
+    defer map.deinit();
+
+    const info = map.get(".cls").?;
+    try std.testing.expect(needsContent(info));
+
+    try std.testing.expectEqualStrings("LaTeX", resolve(info, "").name);
+    try std.testing.expectEqualStrings("LaTeX", resolve(info, "\\documentclass{article}\n\\begin{document}").name);
+    try std.testing.expectEqualStrings("Apex", resolve(info, "public class MyController {\n    @isTest\n}").name);
+    try std.testing.expectEqualStrings("Apex", resolve(info, "trigger AccountTrigger on Account (before insert) {\n}").name);
+}
+
+test "shebang make and pwsh" {
+    try std.testing.expectEqualStrings("Makefile", shebangDetect("#!/usr/bin/make\n").?.name);
+    try std.testing.expectEqualStrings("PowerShell", shebangDetect("#!/usr/bin/pwsh\n").?.name);
+}
+
+test "new languages in extension map" {
+    var map = try buildExtensionMap(std.testing.allocator);
+    defer map.deinit();
+
+    try std.testing.expect(detect(".trigger", "MyTrigger.trigger", &map) != null);
+    try std.testing.expect(detect(".scad", "model.scad", &map) != null);
+    try std.testing.expect(detect(".pkl", "config.pkl", &map) != null);
+    try std.testing.expect(detect(".prisma", "schema.prisma", &map) != null);
+    try std.testing.expect(detect(".slint", "ui.slint", &map) != null);
+    try std.testing.expect(detect(".adoc", "readme.adoc", &map) != null);
+    try std.testing.expect(detect(".hbs", "template.hbs", &map) != null);
+    try std.testing.expect(detect(".twig", "page.twig", &map) != null);
+    try std.testing.expect(detect(".jinja", "page.jinja", &map) != null);
+    try std.testing.expect(detect(".j2", "page.j2", &map) != null);
+    try std.testing.expect(detect(".robot", "test.robot", &map) != null);
+    try std.testing.expect(detect(".rego", "policy.rego", &map) != null);
+    try std.testing.expect(detect(".just", "justfile.just", &map) != null);
+    try std.testing.expect(detect(".haml", "view.haml", &map) != null);
+    try std.testing.expect(detect(".slim", "view.slim", &map) != null);
+    try std.testing.expect(detect(".tpl", "template.tpl", &map) != null);
+    try std.testing.expect(detect(".cshtml", "view.cshtml", &map) != null);
+    try std.testing.expect(detect(".vba", "module.vba", &map) != null);
+    try std.testing.expect(detect(".txt", "notes.txt", &map) != null);
+    try std.testing.expect(detect(".properties", "config.properties", &map) != null);
+
+    try std.testing.expect(detect(".cts", "module.cts", &map) != null);
+    try std.testing.expect(detect(".mts", "module.mts", &map) != null);
+    try std.testing.expect(detect(".ksh", "script.ksh", &map) != null);
+    try std.testing.expect(detect(".F90", "mod.F90", &map) != null);
+    try std.testing.expect(detect(".cobol", "prog.cobol", &map) != null);
+    try std.testing.expect(detect(".Rmd", "report.Rmd", &map) != null);
+    try std.testing.expect(detect(".xaml", "ui.xaml", &map) != null);
+    try std.testing.expect(detect(".csproj", "proj.csproj", &map) != null);
 }
