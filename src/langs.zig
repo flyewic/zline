@@ -27,9 +27,9 @@ pub const CommentStyle = enum(u8) {
 };
 
 const CommentMarkers = struct {
-    line: ?[]const u8 = null,
-    block_open: ?[]const u8 = null,
-    block_close: ?[]const u8 = null,
+    line: []const u8 = &.{},
+    block_open: []const u8 = &.{},
+    block_close: []const u8 = &.{},
 };
 
 pub const markers = [_]CommentMarkers{

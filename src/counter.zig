@@ -44,35 +44,27 @@ pub fn countLines(contents: []const u8, lang: *const langs.Language) FileCount {
 
         if (in_block_comment) {
             result.comments += 1;
-            if (bc) |close| {
-                if (std.mem.indexOf(u8, line, close) != null) {
+            if (bc.len > 0) {
+                if (std.mem.indexOf(u8, line, bc) != null) {
                     in_block_comment = false;
                 }
             }
             continue;
         }
 
-        if (bo) |open| {
-            if (bc != null) {
-                if (std.mem.indexOf(u8, line, open)) |idx| {
-                    if (idx == 0) {
-                        result.comments += 1;
-                        if (std.mem.indexOf(u8, line, bc.?) == null) {
-                            in_block_comment = true;
-                        }
-                        continue;
-                    }
+        if (bo.len > 0 and bc.len > 0) {
+            if (line.len >= bo.len and std.mem.eql(u8, line[0..bo.len], bo)) {
+                result.comments += 1;
+                if (std.mem.indexOf(u8, line, bc) == null) {
+                    in_block_comment = true;
                 }
+                continue;
             }
         }
 
-        if (lc) |lc_str| {
-            if (std.mem.indexOf(u8, line, lc_str)) |idx| {
-                if (idx == 0) {
-                    result.comments += 1;
-                    continue;
-                }
-            }
+        if (lc.len > 0 and line.len >= lc.len and std.mem.eql(u8, line[0..lc.len], lc)) {
+            result.comments += 1;
+            continue;
         }
 
         result.code += 1;
