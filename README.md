@@ -16,13 +16,10 @@ Scan: 156µs · Count: 50ms · 1 language (7 files, 1231 lines)
 
 ## features
 
-- parallel counting across all your cores
 - comment detection for 110+ languages
-- auto-sizing columns with live progress
 - filter columns with `--fields language,lines,code`
 - sort by any column with `--sort lines`
-- leak detection in debug builds, fast in release builds
-- cross platform through zig
+- cross platform (hopefully)
 
 ## install
 
@@ -70,8 +67,8 @@ zline -j 16 ~/huge-repo
 ## development
 
 ```bash
-zig build test           # run tests
-zig build                # debug build with leak detection
+zig build test                      # run tests
+zig build                           # debug build with leak detection
 zig build -Doptimize=ReleaseSmall   # release build
 ```
 
@@ -89,4 +86,4 @@ template styles handle the comment syntax for you. only unique cases like lua or
 
 ## license
 
-MIT
+MIT, go nuts
