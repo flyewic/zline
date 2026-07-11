@@ -28,12 +28,7 @@ fn writeCellRJustNum(w: anytype, n: u64, width: usize) !void {
 }
 
 fn digitCount(n: u64) usize {
-    if (n == 0) return 1;
-    var count: usize = 0;
-    var tmp = n;
-    while (tmp > 0) : (tmp /= 10)
-        count += 1;
-    return count;
+    return std.math.log10_int(n) + 1;
 }
 
 fn formatDuration(w: anytype, ns: u64) !void {

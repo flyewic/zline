@@ -27,7 +27,7 @@ fn readFileHeader(io: Io, dir_path: []const u8, rel_path: []const u8, buf: []u8)
 }
 
 pub fn collectFiles(allocator: std.mem.Allocator, io: Io, dir_path: []const u8, include_hidden: bool) ![]FileEntry {
-    var entries: std.ArrayList(FileEntry) = .empty;
+    var entries = try std.ArrayList(FileEntry).initCapacity(allocator, 1024);
 
     const cwd = Io.Dir.cwd();
     const dir = try Io.Dir.openDir(cwd, io, dir_path, .{ .iterate = true });
