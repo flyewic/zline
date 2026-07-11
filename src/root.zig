@@ -8,4 +8,6 @@ test "root re-exports compile" {
     _ = langs.languages;
     _ = counter.countLines;
     _ = walker.collectFiles;
+    _ = table.digitCount;
+    _ = cli.parseArgs;
 }
