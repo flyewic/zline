@@ -81,34 +81,34 @@ fn L(comptime base: Language, comptime name: []const u8, comptime exts: []const 
 
 pub const languages = [_]Language{
     L(cStyle, "Zig", &.{ ".zig", ".zon" }),
-    L(cStyle, "C", &.{ ".c", ".h" }),
+    L(cStyle, "C", &.{ ".c", ".h", ".ec" }),
     L(cStyle, "C++", &.{ ".cpp", ".hpp", ".cc", ".cxx", ".hh", ".hxx" }),
     L(cStyle, "C#", &.{ ".cs" }),
-    L(cStyle, "Java", &.{ ".java" }),
+    L(cStyle, "Java", &.{ ".java", ".jsp", ".jspf" }),
     L(cStyle, "JavaScript", &.{ ".js", ".jsx", ".mjs", ".cjs" }),
-    L(cStyle, "TypeScript", &.{ ".ts", ".tsx" }),
+    L(cStyle, "TypeScript", &.{ ".ts", ".tsx", ".cts", ".mts" }),
     L(cStyle, "Go", &.{ ".go" }),
     L(cStyle, "Rust", &.{ ".rs" }),
     L(cStyle, "Swift", &.{ ".swift" }),
     L(cStyle, "Kotlin", &.{ ".kt", ".kts" }),
     L(cStyle, "Dart", &.{ ".dart" }),
     L(cStyle, "Scala", &.{ ".scala", ".sc" }),
-    L(cStyle, "PHP", &.{ ".php", ".phtml" }),
+    L(cStyle, "PHP", &.{ ".php", ".phtml", ".phps", ".phpt" }),
     L(cStyle, "SCSS", &.{ ".scss" }),
     L(cStyle, "Less", &.{ ".less" }),
-    L(cStyle, "Verilog", &.{ ".v", ".sv", ".vh" }),
+    L(cStyle, "Verilog", &.{ ".v", ".sv", ".vh", ".svh" }),
     L(cStyle, "Protocol Buffers", &.{".proto"}),
     L(cStyle, "Thrift", &.{".thrift"}),
     L(cStyle, "Solidity", &.{ ".sol" }),
     L(cStyle, "CUE", &.{ ".cue" }),
     L(cStyle, "Objective-C", &.{ ".m", ".mm" }),
     L(cStyle, "Vala", &.{ ".vala", ".vapi" }),
-    L(cStyle, "Groovy", &.{ ".groovy", ".gvy" }),
+    L(cStyle, "Groovy", &.{ ".groovy", ".gvy", "Jenkinsfile", ".jenkinsfile" }),
     L(cStyle, "Reason", &.{ ".re", ".rei" }),
     L(cStyle, "D", &.{ ".d" }),
     L(cStyle, "CUDA", &.{ ".cu", ".cuh" }),
-    L(cStyle, "GLSL", &.{ ".glsl", ".vert", ".frag", ".geom", ".comp" }),
-    L(cStyle, "HLSL", &.{ ".hlsl", ".fx", ".fxh" }),
+    L(cStyle, "GLSL", &.{ ".glsl", ".vert", ".frag", ".geom", ".comp", ".fsh", ".vsh" }),
+    L(cStyle, "HLSL", &.{ ".hlsl", ".fx", ".fxh", ".hlsli" }),
     L(cStyle, "Haxe", &.{ ".hx", ".hxml" }),
     L(cStyle, "ActionScript", &.{ ".as" }),
     L(cStyle, "Gradle", &.{ ".gradle" }),
@@ -127,16 +127,21 @@ pub const languages = [_]Language{
     L(cStyle, "Wren", &.{ ".wren" }),
     L(cStyle, "Umka", &.{ ".um" }),
     L(cStyle, "C3", &.{ ".c3", ".c3i" }),
+    L(cStyle, "Apex", &.{ ".cls", ".trigger" }),
+    L(cStyle, "OpenSCAD", &.{ ".scad" }),
+    L(cStyle, "Pkl", &.{ ".pkl" }),
+    L(cStyle, "Prisma", &.{ ".prisma" }),
+    L(cStyle, "Slint", &.{ ".slint" }),
 
     L(hashStyle, "Python", &.{ ".py", ".pyw", ".pyi" }),
-    L(hashStyle, "Ruby", &.{ ".rb", ".rake", ".gemspec" }),
-    L(hashStyle, "Perl", &.{ ".pl", ".pm", ".pod" }),
-    L(hashStyle, "R", &.{ ".r", ".R" }),
+    L(hashStyle, "Ruby", &.{ ".rb", ".rake", ".gemspec", "Vagrantfile", "Gemfile" }),
+    L(hashStyle, "Perl", &.{ ".pl", ".pm", ".plx", ".ph" }),
+    L(hashStyle, "R", &.{ ".r", ".R", ".Rmd" }),
     L(hashStyle, "Elixir", &.{ ".ex", ".exs" }),
-    L(hashStyle, "Shell", &.{ ".sh", ".bash", ".zsh", ".fish" }),
-    L(hashStyle, "Makefile", &.{ ".make", "Makefile", "makefile", "GNUmakefile" }),
+    L(hashStyle, "Shell", &.{ ".sh", ".bash", ".zsh", ".fish", ".ksh", ".csh" }),
+    L(hashStyle, "Makefile", &.{ ".make", ".mk", "Makefile", "makefile", "GNUmakefile" }),
     L(hashStyle, "CMake", &.{ ".cmake", "CMakeLists.txt" }),
-    L(hashStyle, "Dockerfile", &.{ "Dockerfile" }),
+    L(hashStyle, "Dockerfile", &.{ "Dockerfile", "Containerfile", ".dockerfile" }),
     L(hashStyle, "YAML", &.{ ".yaml", ".yml" }),
     L(hashStyle, "TOML", &.{ ".toml" }),
     L(hashStyle, "GraphQL", &.{ ".graphql", ".gql" }),
@@ -153,36 +158,45 @@ pub const languages = [_]Language{
     L(hashStyle, "Sage", &.{ ".sage" }),
     L(hashStyle, "Gnuplot", &.{ ".gp", ".gnuplot" }),
     L(hashStyle, "GDScript", &.{ ".gd" }),
+    L(hashStyle, "Haml", &.{ ".haml" }),
+    L(hashStyle, "Jinja", &.{ ".jinja", ".jinja2", ".j2" }),
+    L(hashStyle, "Just", &.{ ".just", "Justfile" }),
+    L(hashStyle, "Properties", &.{ ".properties" }),
     L(hashStyle, "Racket", &.{ ".rkt", ".rktl" }),
+    L(hashStyle, "Rego", &.{ ".rego" }),
+    L(hashStyle, "Robot Framework", &.{ ".robot" }),
+    L(hashStyle, "Slim", &.{ ".slim" }),
+    L(hashStyle, "Twig", &.{ ".twig" }),
 
     L(hashCBlock, "Terraform", &.{ ".tf", ".tfvars" }),
 
-    L(doubleDashStyle, "Ada", &.{ ".adb", ".ads" }),
+    L(doubleDashStyle, "Ada", &.{ ".adb", ".ads", ".ada" }),
     L(doubleDashStyle, "VHDL", &.{ ".vhd", ".vhdl" }),
     L(doubleDashStyle, "Dhall", &.{ ".dhall" }),
 
-    L(doubleDashCBlock, "SQL", &.{ ".sql" }),
+    L(doubleDashCBlock, "SQL", &.{ ".sql", ".psql", ".cql" }),
     L(doubleDashCBlock, "PL/SQL", &.{ ".pks", ".pkb" }),
 
     L(semicolonStyle, "Clojure", &.{ ".clj", ".cljs", ".cljc", ".edn" }),
     L(semicolonStyle, "Lisp", &.{ ".lisp", ".lsp", ".cl" }),
     L(semicolonStyle, "Scheme", &.{ ".scm", ".ss" }),
     L(semicolonStyle, "Assembly", &.{ ".asm", ".s", ".S" }),
-    L(semicolonStyle, "INI", &.{ ".ini" }),
+    L(semicolonStyle, "INI", &.{ ".ini", ".cfg", ".editorconfig" }),
     L(semicolonStyle, "Emacs Lisp", &.{ ".el" }),
     L(semicolonStyle, "Papyrus", &.{ ".psc" }),
 
     L(percentStyle, "Erlang", &.{ ".erl", ".hrl" }),
     L(percentStyle, "Prolog", &.{ ".pro" }),
-    L(percentStyle, "LaTeX", &.{ ".tex", ".latex", ".sty", ".cls" }),
+    L(percentStyle, "LaTeX", &.{ ".tex", ".latex", ".sty" }),
 
-    L(htmlStyle, "HTML", &.{ ".html", ".htm", ".xhtml" }),
-    L(htmlStyle, "XML", &.{ ".xml", ".xsd", ".xsl" }),
+    L(htmlStyle, "HTML", &.{ ".html", ".htm", ".xhtml", ".shtml" }),
+    L(htmlStyle, "XML", &.{ ".xml", ".xsd", ".xsl", ".wsdl", ".xaml", ".csproj", ".vbproj", ".props", ".targets", ".ui", ".resx", ".plist", ".xib", "pom.xml" }),
     L(htmlStyle, "SVG", &.{ ".svg" }),
     L(htmlStyle, "Svelte", &.{ ".svelte" }),
     L(htmlStyle, "Vue", &.{ ".vue" }),
+    L(htmlStyle, "Razor", &.{ ".cshtml", ".razor" }),
 
-    L(cssStyle, "CSS", &.{ ".css" }),
+    L(cssStyle, "CSS", &.{ ".css", ".wxss" }),
 
     L(haskellStyle, "Haskell", &.{ ".hs", ".lhs" }),
     L(haskellStyle, "Elm", &.{ ".elm" }),
@@ -195,14 +209,19 @@ pub const languages = [_]Language{
 
     L(ocamlStyle, "OCaml", &.{ ".ml", ".mli" }),
 
-    L(noComment, "JSON", &.{ ".json" }),
-    L(noComment, "Markdown", &.{ ".md", ".markdown" }),
+    L(noComment, "JSON", &.{ ".json", ".jsonl", ".geojson", ".har" }),
+    L(noComment, "Markdown", &.{ ".md", ".markdown", ".mdx" }),
     L(noComment, "reStructuredText", &.{".rst"}),
     L(noComment, "Brainfuck", &.{ ".b", ".bf" }),
+    L(noComment, "Text", &.{ ".txt", ".text" }),
+    L(noComment, "AsciiDoc", &.{ ".adoc", ".asciidoc" }),
+    L(noComment, "Handlebars", &.{ ".hbs", ".handlebars" }),
+    L(noComment, "Pug", &.{ ".jade", ".pug" }),
+    L(noComment, "Smarty", &.{ ".smarty", ".tpl" }),
 
     .{
         .name = "Lua",
-        .extensions = &.{ ".lua" },
+        .extensions = &.{ ".lua", ".nse" },
         .line_comment = "--",
         .block_comment_open = "--[[",
         .block_comment_close = "]]",
@@ -216,7 +235,7 @@ pub const languages = [_]Language{
     },
     .{
         .name = "PowerShell",
-        .extensions = &.{ ".ps1", ".psm1" },
+        .extensions = &.{ ".ps1", ".psm1", ".psd1" },
         .line_comment = "#",
         .block_comment_open = "<#",
         .block_comment_close = "#>",
@@ -230,17 +249,17 @@ pub const languages = [_]Language{
     },
     .{
         .name = "Batch",
-        .extensions = &.{ ".bat", ".cmd" },
+        .extensions = &.{ ".bat", ".cmd", ".btm" },
         .line_comment = "::",
     },
     .{
         .name = "Fortran",
-        .extensions = &.{ ".f", ".for", ".f90", ".f95" },
+        .extensions = &.{ ".f", ".for", ".f90", ".f95", ".F", ".F90", ".F95", ".f03" },
         .line_comment = "!",
     },
     .{
         .name = "COBOL",
-        .extensions = &.{ ".cob", ".cbl" },
+        .extensions = &.{ ".cob", ".cbl", ".cobol", ".cpy" },
         .line_comment = "*",
     },
     .{
@@ -256,6 +275,11 @@ pub const languages = [_]Language{
     .{
         .name = "Visual Basic",
         .extensions = &.{ ".vb", ".vbs" },
+        .line_comment = "'",
+    },
+    .{
+        .name = "VBA",
+        .extensions = &.{ ".vba" },
         .line_comment = "'",
     },
     .{
@@ -294,6 +318,14 @@ const AmbiguousDef = struct {
 };
 
 const ambiguous_defs = [_]AmbiguousDef{
+    .{
+        .ext = ".cls",
+        .rules = &.{
+            .{ .patterns = &.{ "@isTest", "public class ", "private class ", "trigger ", "Schema." }, .lang_name = "Apex" },
+            .{ .patterns = &.{ "\\documentclass", "\\usepackage", "\\begin{document}", "\\newcommand" }, .lang_name = "LaTeX" },
+        },
+        .fallback_lang = "LaTeX",
+    },
     .{
         .ext = ".cl",
         .rules = &.{
@@ -360,6 +392,8 @@ const shebang_map = [_]struct { name: []const u8, lang_name: []const u8 }{
     .{ .name = "deno", .lang_name = "JavaScript" },
     .{ .name = "bun", .lang_name = "JavaScript" },
     .{ .name = "pypy", .lang_name = "Python" },
+    .{ .name = "make", .lang_name = "Makefile" },
+    .{ .name = "pwsh", .lang_name = "PowerShell" },
 };
 
 fn findLangByName(name: []const u8) ?*const Language {
