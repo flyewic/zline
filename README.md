@@ -27,7 +27,21 @@ Scan: 156µs · Count: 50ms · 1 language (7 files, 1231 lines)
 
 ## install
 
-### download a binary
+### homebrew
+
+```bash
+brew tap flyewic/zline https://github.com/flyewic/zline
+brew install zline
+```
+
+### scoop
+
+```bash
+scoop bucket add flyewic https://github.com/flyewic/zline
+scoop install zline
+```
+
+### direct download
 
 get the latest from [releases](https://github.com/flyewic/zline/releases), pick your platform, drop it in `$PATH`.
 
@@ -81,6 +95,26 @@ zig build -Doptimize=ReleaseSmall   # min-size release (for distribution)
 ```
 
 the debug build uses `DebugAllocator` and will panic if anything leaked. the release build uses raw page allocation, no overhead.
+
+## troubleshooting
+
+### macOS gatekeeper
+
+downloaded binaries are unsigned, so gatekeeper blocks them. pick your fix:
+
+```
+# quick: strip the quarantine flag
+xattr -dr com.apple.quarantine /usr/local/bin/zline
+
+# or: right-click the binary in Finder → Open (once)
+
+# or: build from source, gatekeeper won't interfere
+zig build -Doptimize=ReleaseSmall
+```
+
+### windows smart screen
+
+first launch may trigger windows defender smartscreen. click "More info" → "Run anyway". happens once.
 
 ## adding languages
 

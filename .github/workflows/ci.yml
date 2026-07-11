@@ -53,3 +53,106 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: zig-out/bin/zline-${{ matrix.target }}*
+
+  packaging:
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p assets
+          gh release download ${{ github.ref_name }} --dir assets --repo ${{ github.repository }}
+
+      - name: Update Scoop manifest
+        run: |
+          TAG="${{ github.ref_name }}"
+          VER="${TAG#v}"
+          WIN_HASH=$(sha256sum assets/zline-x86_64-windows.exe | cut -d' ' -f1)
+          cat > bucket/zline.json << MANIFEST
+          {
+              "version": "${VER}",
+              "description": "fast line counter in zig",
+              "homepage": "https://github.com/flyewic/zline",
+              "license": "MIT",
+              "architecture": {
+                  "64bit": {
+                      "url": "https://github.com/flyewic/zline/releases/download/${TAG}/zline-x86_64-windows.exe",
+                      "hash": "sha256:${WIN_HASH}"
+                  }
+              },
+              "bin": "zline-x86_64-windows.exe"
+          }
+          MANIFEST
+
+      - name: Update Homebrew formula
+        run: |
+          TAG="${{ github.ref_name }}"
+          VER="${TAG#v}"
+          X86_LINUX_HASH=$(sha256sum assets/zline-x86_64-linux | cut -d' ' -f1)
+          X86_MACOS_HASH=$(sha256sum assets/zline-x86_64-macos | cut -d' ' -f1)
+          AARCH64_LINUX_HASH=$(sha256sum assets/zline-aarch64-linux | cut -d' ' -f1)
+          AARCH64_MACOS_HASH=$(sha256sum assets/zline-aarch64-macos | cut -d' ' -f1)
+          cat > Formula/zline.rb << RUBY
+          class Zline < Formula
+            desc "fast line counter in zig"
+            homepage "https://github.com/flyewic/zline"
+            url "https://github.com/flyewic/zline/releases/download/${TAG}/zline-x86_64-linux"
+            sha256 "${X86_LINUX_HASH}"
+            version "${VER}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/flyewic/zline/releases/download/${TAG}/zline-aarch64-macos"
+                sha256 "${AARCH64_MACOS_HASH}"
+              else
+                url "https://github.com/flyewic/zline/releases/download/${TAG}/zline-x86_64-macos"
+                sha256 "${X86_MACOS_HASH}"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "https://github.com/flyewic/zline/releases/download/${TAG}/zline-aarch64-linux"
+                sha256 "${AARCH64_LINUX_HASH}"
+              end
+            end
+
+            def install
+              if OS.mac?
+                if Hardware::CPU.arm?
+                  bin.install "zline-aarch64-macos" => "zline"
+                else
+                  bin.install "zline-x86_64-macos" => "zline"
+                end
+              else
+                if Hardware::CPU.arm?
+                  bin.install "zline-aarch64-linux" => "zline"
+                else
+                  bin.install "zline-x86_64-linux" => "zline"
+                end
+              end
+            end
+
+            test do
+              system "#{bin}/zline", "--version"
+            end
+          end
+          RUBY
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add Formula/zline.rb bucket/zline.json
+          git diff --staged --quiet || git commit -m "Update packaging for ${{ github.ref_name }}"
+          git push
