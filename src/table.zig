@@ -207,3 +207,11 @@ pub fn printResults(io: Io, totals: zline.walker.CountsByLang, sort_by: cli.Sort
 
     try w.flush();
 }
+
+test "digitCount" {
+    try std.testing.expectEqual(@as(usize, 1), digitCount(0));
+    try std.testing.expectEqual(@as(usize, 1), digitCount(5));
+    try std.testing.expectEqual(@as(usize, 2), digitCount(42));
+    try std.testing.expectEqual(@as(usize, 3), digitCount(999));
+    try std.testing.expectEqual(@as(usize, 10), digitCount(1234567890));
+}
