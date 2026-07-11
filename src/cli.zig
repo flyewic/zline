@@ -175,6 +175,40 @@ test "parseArgs jobs and sort" {
 
 test "parseArgs unknown flag" {
     const args = &[_][]const u8{"zline", "--bad-flag"};
-    const result = parseArgs(std.testing.allocator, args);
-    try std.testing.expectError(error.UnknownFlag, result);
+    try std.testing.expectError(error.UnknownFlag, parseArgs(std.testing.allocator, args));
+}
+
+test "parseArgs hidden flag" {
+    const args = &[_][]const u8{"zline", "--hidden"};
+    const parsed = try parseArgs(std.testing.allocator, args);
+    try std.testing.expect(parsed.hidden);
+}
+
+test "parseArgs version flag" {
+    const args = &[_][]const u8{"zline", "--version"};
+    const parsed = try parseArgs(std.testing.allocator, args);
+    try std.testing.expect(parsed.version);
+}
+
+test "parseArgs v shortcut" {
+    const args = &[_][]const u8{"zline", "-v"};
+    const parsed = try parseArgs(std.testing.allocator, args);
+    try std.testing.expect(parsed.version);
+}
+
+test "parseArgs fields" {
+    const args = &[_][]const u8{"zline", "--fields", "language,lines,code"};
+    const parsed = try parseArgs(std.testing.allocator, args);
+    try std.testing.expectEqual(@as(usize, 3), parsed.fields.len);
+    try std.testing.expectEqual(Field.language, parsed.fields[0]);
+    try std.testing.expectEqual(Field.lines, parsed.fields[1]);
+    try std.testing.expectEqual(Field.code, parsed.fields[2]);
+}
+
+test "parseArgs fields dedup" {
+    const args = &[_][]const u8{"zline", "--fields", "lines,lines,code"};
+    const parsed = try parseArgs(std.testing.allocator, args);
+    try std.testing.expectEqual(@as(usize, 2), parsed.fields.len);
+    try std.testing.expectEqual(Field.lines, parsed.fields[0]);
+    try std.testing.expectEqual(Field.code, parsed.fields[1]);
 }

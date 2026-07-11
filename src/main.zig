@@ -298,3 +298,24 @@ fn run(init: std.process.Init, gpa: std.mem.Allocator) !void {
     try table.printResults(io, totals, parsed_args.sort_by,
         @as(u64, @intCast(t1 - t0)), @as(u64, @intCast(t2 - t1)), show_fields, gpa);
 }
+
+test "isArchive detects archive extensions" {
+    try std.testing.expect(isArchive("foo.zip"));
+    try std.testing.expect(isArchive("foo.tar"));
+    try std.testing.expect(isArchive("foo.tar.gz"));
+    try std.testing.expect(isArchive("foo.tar.bz2"));
+    try std.testing.expect(isArchive("foo.tar.xz"));
+    try std.testing.expect(isArchive("foo.tgz"));
+    try std.testing.expect(isArchive("foo.tbz2"));
+    try std.testing.expect(isArchive("foo.txz"));
+    try std.testing.expect(isArchive("foo.whl"));
+    try std.testing.expect(isArchive("foo.deb"));
+}
+
+test "isArchive rejects non-archive" {
+    try std.testing.expect(!isArchive("foo.zig"));
+    try std.testing.expect(!isArchive("foo.tar.gz2"));
+    try std.testing.expect(!isArchive("foo.txt"));
+    try std.testing.expect(!isArchive("src/"));
+    try std.testing.expect(!isArchive(""));
+}
