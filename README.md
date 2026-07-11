@@ -7,11 +7,23 @@ $ zline src/
 
  Language   Files   Lines   Code   Comments   Blanks
 ────────────────────────────────────────────────────
-      Zig       7    1231   1066         15      150
+      Zig       7    2186   1908         27      251
 ────────────────────────────────────────────────────
-    TOTAL       7    1231   1066         15      150
+    TOTAL       7    2186   1908         27      251
 
-Scan: 156µs · Count: 50ms · 1 language (7 files, 1231 lines)
+Scan: 29µs | Count: 87µs | 1 language (7 files, 2186 lines)
+```
+
+```
+$ zline --output json --languages Go,Python /home/flye/Projects/griddy
+
+{
+  "languages": [
+    {"language": "Go", "files": 38, "lines": 5658, "code": 4759, "comments": 110, "blanks": 789},
+    {"language": "Python", "files": 3, "lines": 589, "code": 364, "comments": 141, "blanks": 84}
+  ],
+  "total": {"files": 41, "lines": 6247, "code": 5123, "comments": 251, "blanks": 873}
+}
 ```
 
 ## features
@@ -87,6 +99,8 @@ defaults to the current directory if you leave out the path
 | `--sort FIELD` | sort by `name`, `files`, `lines`, `code`, `comments`, or `blanks` |
 | `--fields FIELDS` | comma-separated columns, like `language,lines,code` |
 | `--hidden` | include hidden files and directories |
+| `-o, --output FORMAT` | output format: `table` (default), `json`, `csv` |
+| `-l, --languages LANGS` | comma-separated languages to show, case-insensitive (`zig,rust,go`) |
 
 ### examples
 
@@ -95,6 +109,9 @@ zline --fields language,lines,code src/
 zline --sort comments .
 zline -j 16 ~/huge-repo
 zline --hidden ~/dotfiles
+zline --output json src/
+zline -o csv -l zig,rust --sort code
+zline --languages Python,JavaScript --fields language,lines --output json
 ```
 
 ## development

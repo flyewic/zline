@@ -5,6 +5,8 @@ const zline = @import("zline");
 
 const FileEntry = zline.walker.FileEntry;
 
+/// Result returned by each worker thread: its own arena and a
+/// hash map tallying counts per language for its chunk of files.
 const ChunkResult = struct {
     counts: zline.walker.CountsByLang,
     arena: std.heap.ArenaAllocator,
@@ -68,6 +70,21 @@ fn reportProgress(io: Io, total: usize, finished: *std.atomic.Value(bool), threa
     eprint(io, "\rCounting files... [{d}/{d}] 100%\n", .{ total, total });
 }
 
+fn eqIgnoreCase(a: []const u8, b: []const u8) bool {
+    if (a.len != b.len) return false;
+    for (a, b) |ca, cb| {
+        if (std.ascii.toLower(ca) != std.ascii.toLower(cb)) return false;
+    }
+    return true;
+}
+
+fn languageMatches(name: []const u8, filters: []const []const u8) bool {
+    for (filters) |f| {
+        if (eqIgnoreCase(name, f)) return true;
+    }
+    return false;
+}
+
 fn isArchive(path: []const u8) bool {
     const exts = [_][]const u8{ ".tar.gz", ".tar.bz2", ".tar.xz", ".tgz", ".tbz2", ".txz", ".zip", ".whl", ".deb", ".tar" };
     for (exts) |ext| {
@@ -99,6 +116,8 @@ fn cleanupDir(io: Io, path: []const u8) void {
     Io.Dir.deleteTree(Io.Dir.cwd(), io, path) catch {};
 }
 
+/// Entry point. In debug mode uses a DebugAllocator to catch leaks.
+/// Release mode uses raw page allocation for speed.
 pub fn main(init: std.process.Init) !void {
     if (builtin.mode == .Debug) {
         var debug: std.heap.DebugAllocator(.{ .thread_safe = true }) = .init;
@@ -114,6 +133,9 @@ pub fn main(init: std.process.Init) !void {
     }
 }
 
+/// Core pipeline: parse args, scan directory, detect languages,
+/// count files (single- or multi-threaded), filter by language,
+/// and format output. All allocations go through main_arena.
 fn run(init: std.process.Init, gpa: std.mem.Allocator) !void {
     var main_arena = std.heap.ArenaAllocator.init(gpa);
     defer main_arena.deinit();
@@ -169,7 +191,8 @@ fn run(init: std.process.Init, gpa: std.mem.Allocator) !void {
     const n_jobs = @max(1, parsed_args.jobs orelse @max(cpu_count, 1));
     const min_files_per_thread = 20;
 
-    const t2, const totals, const deferred_arenas = if (n_jobs <= 1 or entries.len <= @as(usize, n_jobs) * min_files_per_thread) blk: {
+    // Use a single worker for small directories or when --jobs 1
+    const t2, var totals, const deferred_arenas = if (n_jobs <= 1 or entries.len <= @as(usize, n_jobs) * min_files_per_thread) blk: {
         var dummy: [1]std.atomic.Value(usize) = undefined;
         dummy[0] = std.atomic.Value(usize).init(0);
         const result = countChunk(entries, io, 0, &dummy, gpa);
@@ -242,6 +265,29 @@ fn run(init: std.process.Init, gpa: std.mem.Allocator) !void {
     };
     defer for (deferred_arenas) |*a| a.deinit();
 
+    // Post-count filtering: remove languages not in --languages
+    if (parsed_args.languages.len > 0) {
+        var filters: [32][]const u8 = undefined;
+        var filter_count: usize = 0;
+        var it = std.mem.splitScalar(u8, parsed_args.languages, ',');
+        while (it.next()) |token| {
+            const trimmed = std.mem.trim(u8, token, " ");
+            if (trimmed.len > 0 and filter_count < filters.len) {
+                filters[filter_count] = trimmed;
+                filter_count += 1;
+            }
+        }
+        if (filter_count > 0) {
+            var fit = totals.iterator();
+            while (fit.next()) |entry| {
+                if (!languageMatches(entry.key_ptr.*.name, filters[0..filter_count])) {
+                    _ = totals.remove(entry.key_ptr.*);
+                }
+            }
+        }
+    }
+
+    // Always include the language column for identification
     const show_fields = fields: {
         if (parsed_args.fields.len == 0) break :fields &zline.cli.all_fields;
 
@@ -256,7 +302,7 @@ fn run(init: std.process.Init, gpa: std.mem.Allocator) !void {
         break :fields result;
     };
     try zline.table.printResults(io, totals, parsed_args.sort_by,
-        @as(u64, @intCast(t1 - t0)), @as(u64, @intCast(t2 - t1)), show_fields, gpa);
+        @as(u64, @intCast(t1 - t0)), @as(u64, @intCast(t2 - t1)), show_fields, parsed_args.output_format, gpa);
 }
 
 test "isArchive detects archive extensions" {
@@ -277,4 +323,43 @@ test "isArchive rejects non-archive" {
     try std.testing.expect(!isArchive("foo.txt"));
     try std.testing.expect(!isArchive("src/"));
     try std.testing.expect(!isArchive(""));
+}
+
+test "eqIgnoreCase exact match" {
+    try std.testing.expect(eqIgnoreCase("Zig", "Zig"));
+    try std.testing.expect(eqIgnoreCase("python", "python"));
+    try std.testing.expect(eqIgnoreCase("", ""));
+}
+
+test "eqIgnoreCase different case" {
+    try std.testing.expect(eqIgnoreCase("Zig", "zig"));
+    try std.testing.expect(eqIgnoreCase("Python", "PYTHON"));
+    try std.testing.expect(eqIgnoreCase("rust", "RUST"));
+    try std.testing.expect(eqIgnoreCase("JavaScript", "JAVASCRIPT"));
+}
+
+test "eqIgnoreCase different strings" {
+    try std.testing.expect(!eqIgnoreCase("Zig", "Rust"));
+    try std.testing.expect(!eqIgnoreCase("Python", "Python3"));
+    try std.testing.expect(!eqIgnoreCase("Go", ""));
+}
+
+test "languageMatches single filter" {
+    const filters = [_][]const u8{"Zig"};
+    try std.testing.expect(languageMatches("Zig", &filters));
+    try std.testing.expect(languageMatches("zig", &filters));
+    try std.testing.expect(!languageMatches("Rust", &filters));
+}
+
+test "languageMatches multiple filters" {
+    const filters = [_][]const u8{ "Zig", "Python", "Rust" };
+    try std.testing.expect(languageMatches("Zig", &filters));
+    try std.testing.expect(languageMatches("python", &filters));
+    try std.testing.expect(languageMatches("RUST", &filters));
+    try std.testing.expect(!languageMatches("JavaScript", &filters));
+}
+
+test "languageMatches empty filters" {
+    const filters: [0][]const u8 = .{};
+    try std.testing.expect(!languageMatches("Zig", &filters));
 }
