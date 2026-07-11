@@ -16,7 +16,10 @@ Scan: 156µs · Count: 50ms · 1 language (7 files, 1231 lines)
 
 ## features
 
-- comment detection for 110+ languages
+- comment detection for 120+ languages
+- 3-stage language detection: extension → heuristics → shebang
+- pattern matching to resolve ambiguous extensions (`.m` → MATLAB vs Obj-C)
+- shebang detection for extensionless scripts (`#!/usr/bin/env python3`)
 - filter columns with `--fields language,lines,code`
 - sort by any column with `--sort lines`
 - cross platform (hopefully)
@@ -56,6 +59,7 @@ defaults to the current directory if you leave out the path
 | `-j, --jobs N` | number of parallel workers (default: your cpu count) |
 | `--sort FIELD` | sort by `name`, `files`, `lines`, `code`, `comments`, or `blanks` |
 | `--fields FIELDS` | comma-separated columns, like `language,lines,code` |
+| `--hidden` | include hidden files and directories |
 
 ### examples
 
@@ -63,6 +67,7 @@ defaults to the current directory if you leave out the path
 zline --fields language,lines,code src/
 zline --sort comments .
 zline -j 16 ~/huge-repo
+zline --hidden ~/dotfiles
 ```
 
 ## development
@@ -85,6 +90,8 @@ L(cStyle, "Rust", &.{ ".rs" }),
 ```
 
 template styles handle the comment syntax for you. only unique cases like lua or julia get their own block.
+
+for extensions shared by multiple languages (`.m` is both Objective-C and MATLAB), add entries to the `ambiguous_defs` array with pattern scoring rules. the tool will peek at file contents to decide.
 
 ## license
 
