@@ -12,24 +12,25 @@ const ChunkResult = struct {
     arena: std.heap.ArenaAllocator,
 };
 
+fn eprint(io: Io, comptime fmt: []const u8, args: anytype) void {
+    var buf: [256]u8 = undefined;
+    var w = Io.File.writer(Io.File.stderr(), io, &buf);
+    w.interface.print(fmt, args) catch {};
+    w.flush() catch {};
+}
+
 fn countChunk(entries: []const FileEntry, io: Io, thread_idx: usize, thread_counts: []std.atomic.Value(usize), gpa: std.mem.Allocator) ChunkResult {
     var arena = std.heap.ArenaAllocator.init(gpa);
     const allocator = arena.allocator();
     var counts = zline.walker.CountsByLang.init(allocator);
     for (entries) |fe| {
         const fc = zline.counter.countFile(allocator, io, fe.path, fe.lang) catch |err| {
-            var buf2: [256]u8 = undefined;
-            var ew = Io.File.writer(Io.File.stderr(), io, &buf2);
-            ew.interface.print("warning: {s}: {s}\n", .{ fe.path, @errorName(err) }) catch {};
-            ew.flush() catch {};
+            eprint(io, "warning: {s}: {s}\n", .{ fe.path, @errorName(err) });
             _ = thread_counts[thread_idx].fetchAdd(1, .monotonic);
             continue;
         };
         const gop = counts.getOrPut(fe.lang) catch {
-            var buf2: [256]u8 = undefined;
-            var ew = Io.File.writer(Io.File.stderr(), io, &buf2);
-            ew.interface.print("warning: out of memory for {s}\n", .{fe.lang.name}) catch {};
-            ew.flush() catch {};
+            eprint(io, "warning: out of memory for {s}\n", .{fe.lang.name});
             _ = thread_counts[thread_idx].fetchAdd(1, .monotonic);
             continue;
         };
@@ -63,18 +64,10 @@ fn reportProgress(io: Io, total: usize, finished: *std.atomic.Value(bool), threa
             done += tc.load(.acquire);
         }
         const pct = @min(100 * done / @max(total, 1), 100);
-        var buf: [256]u8 = undefined;
-        var writer = Io.File.writer(Io.File.stderr(), io, &buf);
-        const w = &writer.interface;
-        w.print("\rCounting files... [{d}/{d}] {d}%", .{ done, total, pct }) catch {};
-        w.flush() catch {};
+        eprint(io, "\rCounting files... [{d}/{d}] {d}%", .{ done, total, pct });
         _ = Io.sleep(io, Io.Duration.fromNanoseconds(50 * std.time.ns_per_ms), .awake) catch {};
     }
-    var buf: [256]u8 = undefined;
-    var writer = Io.File.writer(Io.File.stderr(), io, &buf);
-    const w = &writer.interface;
-    w.print("\rCounting files... [{d}/{d}] 100%\n", .{ total, total }) catch {};
-    w.flush() catch {};
+    eprint(io, "\rCounting files... [{d}/{d}] 100%\n", .{ total, total });
 }
 
 fn isArchive(path: []const u8) bool {
@@ -154,51 +147,29 @@ fn run(init: std.process.Init, gpa: std.mem.Allocator) !void {
 
     const t0 = Io.Timestamp.now(io, .awake).nanoseconds;
 
-    {
-        var buf: [256]u8 = undefined;
-        var writer = Io.File.writer(Io.File.stderr(), io, &buf);
-        const w = &writer.interface;
-        w.print("Scanning '{s}'...", .{parsed_args.path}) catch {};
-        w.flush() catch {};
-    }
+    eprint(io, "Scanning '{s}'...", .{parsed_args.path});
 
     var scan_path = parsed_args.path;
     var cleanup_path: ?[]const u8 = null;
     defer if (cleanup_path) |cp| cleanupDir(io, cp);
     if (isArchive(parsed_args.path)) {
         scan_path = extractArchive(arena, io, parsed_args.path) catch |err| {
-            var ebuf: [256]u8 = undefined;
-            var ew = Io.File.writer(Io.File.stderr(), io, &ebuf);
-            ew.interface.print("error: cannot extract {s}: {s}\n", .{ parsed_args.path, @errorName(err) }) catch {};
-            ew.flush() catch {};
+            eprint(io, "error: cannot extract {s}: {s}\n", .{ parsed_args.path, @errorName(err) });
             return;
         };
         cleanup_path = scan_path;
     }
 
     const entries = zline.walker.collectFiles(arena, io, scan_path, parsed_args.hidden) catch |err| {
-        var ebuf: [256]u8 = undefined;
-        var ew = Io.File.writer(Io.File.stderr(), io, &ebuf);
-        ew.interface.print("error: {s}: {s}\n", .{ scan_path, @errorName(err) }) catch {};
-        ew.flush() catch {};
+        eprint(io, "error: {s}: {s}\n", .{ scan_path, @errorName(err) });
         return;
     };
     const t1 = Io.Timestamp.now(io, .awake).nanoseconds;
 
-    {
-        var buf: [256]u8 = undefined;
-        var writer = Io.File.writer(Io.File.stderr(), io, &buf);
-        const w = &writer.interface;
-        w.print(" found {d} source files\n", .{entries.len}) catch {};
-        w.flush() catch {};
-    }
+    eprint(io, " found {d} source files\n", .{entries.len});
 
     if (entries.len == 0) {
-        var buf: [256]u8 = undefined;
-        var writer = Io.File.writer(Io.File.stderr(), io, &buf);
-        const w = &writer.interface;
-        w.print("No source files found in '{s}'.\n", .{parsed_args.path}) catch {};
-        w.flush() catch {};
+        eprint(io, "No source files found in '{s}'.\n", .{parsed_args.path});
         return;
     }
 
