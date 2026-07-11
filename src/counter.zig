@@ -4,14 +4,19 @@ const langs = @import("langs.zig");
 
 pub const FileCount = struct {
     language: *const langs.Language,
-    files: u64 = 0,
-    lines: u64 = 0,
-    code: u64 = 0,
-    comments: u64 = 0,
-    blanks: u64 = 0,
+    files: u32 = 0,
+    lines: u32 = 0,
+    code: u32 = 0,
+    comments: u32 = 0,
+    blanks: u32 = 0,
 };
 
 pub fn countLines(contents: []const u8, lang: *const langs.Language) FileCount {
+    const m = langs.markers[@intFromEnum(lang.style)];
+    const lc = m.line;
+    const bo = m.block_open;
+    const bc = m.block_close;
+
     var result = FileCount{
         .language = lang,
         .files = 1,
@@ -39,20 +44,20 @@ pub fn countLines(contents: []const u8, lang: *const langs.Language) FileCount {
 
         if (in_block_comment) {
             result.comments += 1;
-            if (lang.block_comment_close) |close| {
-                if (std.mem.indexOf(u8, line, close)) |_| {
+            if (bc) |close| {
+                if (std.mem.indexOf(u8, line, close) != null) {
                     in_block_comment = false;
                 }
             }
             continue;
         }
 
-        if (lang.block_comment_open) |open| {
-            if (lang.block_comment_close) |close| {
+        if (bo) |open| {
+            if (bc != null) {
                 if (std.mem.indexOf(u8, line, open)) |idx| {
                     if (idx == 0) {
                         result.comments += 1;
-                        if (std.mem.indexOf(u8, line, close) == null) {
+                        if (std.mem.indexOf(u8, line, bc.?) == null) {
                             in_block_comment = true;
                         }
                         continue;
@@ -61,8 +66,8 @@ pub fn countLines(contents: []const u8, lang: *const langs.Language) FileCount {
             }
         }
 
-        if (lang.line_comment) |lc| {
-            if (std.mem.indexOf(u8, line, lc)) |idx| {
+        if (lc) |lc_str| {
+            if (std.mem.indexOf(u8, line, lc_str)) |idx| {
                 if (idx == 0) {
                     result.comments += 1;
                     continue;
@@ -101,11 +106,11 @@ pub fn countFile(allocator: std.mem.Allocator, io: Io, path: []const u8, lang: *
 test "countLines empty file" {
     const lang = &langs.languages[0]; // Zig
     const result = countLines("", lang);
-    try std.testing.expectEqual(@as(u64, 1), result.files);
-    try std.testing.expectEqual(@as(u64, 0), result.lines);
-    try std.testing.expectEqual(@as(u64, 0), result.code);
-    try std.testing.expectEqual(@as(u64, 0), result.comments);
-    try std.testing.expectEqual(@as(u64, 0), result.blanks);
+    try std.testing.expectEqual(@as(u32, 1), result.files);
+    try std.testing.expectEqual(@as(u32, 0), result.lines);
+    try std.testing.expectEqual(@as(u32, 0), result.code);
+    try std.testing.expectEqual(@as(u32, 0), result.comments);
+    try std.testing.expectEqual(@as(u32, 0), result.blanks);
 }
 
 test "countLines zig basic" {
@@ -120,20 +125,20 @@ test "countLines zig basic" {
         \\
     ;
     const result = countLines(source, lang);
-    try std.testing.expectEqual(@as(u64, 6), result.lines);
-    try std.testing.expectEqual(@as(u64, 4), result.code);
-    try std.testing.expectEqual(@as(u64, 1), result.comments);
-    try std.testing.expectEqual(@as(u64, 1), result.blanks);
+    try std.testing.expectEqual(@as(u32, 6), result.lines);
+    try std.testing.expectEqual(@as(u32, 4), result.code);
+    try std.testing.expectEqual(@as(u32, 1), result.comments);
+    try std.testing.expectEqual(@as(u32, 1), result.blanks);
 }
 
 test "countLines zig code with inline comment" {
     const lang = &langs.languages[0]; // Zig
     const source = "const x = 5; // inline comment\n";
     const result = countLines(source, lang);
-    try std.testing.expectEqual(@as(u64, 1), result.lines);
-    try std.testing.expectEqual(@as(u64, 1), result.code);
-    try std.testing.expectEqual(@as(u64, 0), result.comments);
-    try std.testing.expectEqual(@as(u64, 0), result.blanks);
+    try std.testing.expectEqual(@as(u32, 1), result.lines);
+    try std.testing.expectEqual(@as(u32, 1), result.code);
+    try std.testing.expectEqual(@as(u32, 0), result.comments);
+    try std.testing.expectEqual(@as(u32, 0), result.blanks);
 }
 
 test "countLines block comments" {
@@ -146,49 +151,47 @@ test "countLines block comments" {
         \\int z = 2; /* inline block */
     ;
     const result = countLines(source, lang);
-    try std.testing.expectEqual(@as(u64, 5), result.lines);
-    try std.testing.expectEqual(@as(u64, 3), result.code);
-    try std.testing.expectEqual(@as(u64, 2), result.comments);
-    try std.testing.expectEqual(@as(u64, 0), result.blanks);
+    try std.testing.expectEqual(@as(u32, 5), result.lines);
+    try std.testing.expectEqual(@as(u32, 3), result.code);
+    try std.testing.expectEqual(@as(u32, 2), result.comments);
+    try std.testing.expectEqual(@as(u32, 0), result.blanks);
 }
 
 test "countLines code before block comment" {
     const lang = &langs.languages[1]; // C
     const source = "int x = 0; /* comment */\n";
     const result = countLines(source, lang);
-    try std.testing.expectEqual(@as(u64, 1), result.lines);
-    try std.testing.expectEqual(@as(u64, 1), result.code);
-    try std.testing.expectEqual(@as(u64, 0), result.comments);
+    try std.testing.expectEqual(@as(u32, 1), result.lines);
+    try std.testing.expectEqual(@as(u32, 1), result.code);
+    try std.testing.expectEqual(@as(u32, 0), result.comments);
 }
 
 test "countLines string containing comment marker" {
-    const lang = langs.Language{ .name = "Zig", .extensions = &.{}, .line_comment = "//" };
+    const lang = langs.Language{ .name = "Zig", .extensions = &.{}, .style = .c_style };
     const source = "const s = \"// not a comment\";\n";
     const result = countLines(source, &lang);
-    try std.testing.expectEqual(@as(u64, 1), result.code);
-    try std.testing.expectEqual(@as(u64, 0), result.comments);
+    try std.testing.expectEqual(@as(u32, 1), result.code);
+    try std.testing.expectEqual(@as(u32, 0), result.comments);
 }
 
 test "countLines python comment" {
-    const lang = langs.Language{ .name = "Python", .extensions = &.{}, .line_comment = "#" };
+    const lang = langs.Language{ .name = "Python", .extensions = &.{}, .style = .hash_style };
     const source =
         \\def hello():
         \\    # comment
         \\    pass
     ;
     const result = countLines(source, &lang);
-    try std.testing.expectEqual(@as(u64, 3), result.lines);
-    try std.testing.expectEqual(@as(u64, 2), result.code);
-    try std.testing.expectEqual(@as(u64, 1), result.comments);
+    try std.testing.expectEqual(@as(u32, 3), result.lines);
+    try std.testing.expectEqual(@as(u32, 2), result.code);
+    try std.testing.expectEqual(@as(u32, 1), result.comments);
 }
 
 test "countLines html comments" {
     const lang = langs.Language{
         .name = "HTML",
         .extensions = &.{},
-        .line_comment = null,
-        .block_comment_open = "<!--",
-        .block_comment_close = "-->",
+        .style = .html,
     };
     const source =
         \\<div>
@@ -196,109 +199,107 @@ test "countLines html comments" {
         \\</div>
     ;
     const result = countLines(source, &lang);
-    try std.testing.expectEqual(@as(u64, 3), result.lines);
-    try std.testing.expectEqual(@as(u64, 2), result.code);
-    try std.testing.expectEqual(@as(u64, 1), result.comments);
+    try std.testing.expectEqual(@as(u32, 3), result.lines);
+    try std.testing.expectEqual(@as(u32, 2), result.code);
+    try std.testing.expectEqual(@as(u32, 1), result.comments);
 }
 
 test "countLines matlab percent comment" {
-    const lang = langs.Language{ .name = "MATLAB", .extensions = &.{}, .line_comment = "%" };
+    const lang = langs.Language{ .name = "MATLAB", .extensions = &.{}, .style = .matlab };
     const source =
         \\x = 1
         \\% comment
         \\y = 2
     ;
     const result = countLines(source, &lang);
-    try std.testing.expectEqual(@as(u64, 3), result.lines);
-    try std.testing.expectEqual(@as(u64, 2), result.code);
-    try std.testing.expectEqual(@as(u64, 1), result.comments);
+    try std.testing.expectEqual(@as(u32, 3), result.lines);
+    try std.testing.expectEqual(@as(u32, 2), result.code);
+    try std.testing.expectEqual(@as(u32, 1), result.comments);
 }
 
 test "countLines lua dash dash comment" {
-    const lang = langs.Language{ .name = "Lua", .extensions = &.{}, .line_comment = "--" };
+    const lang = langs.Language{ .name = "Lua", .extensions = &.{}, .style = .lua };
     const source =
         \\local x = 1
         \\-- comment
         \\print(x)
     ;
     const result = countLines(source, &lang);
-    try std.testing.expectEqual(@as(u64, 3), result.lines);
-    try std.testing.expectEqual(@as(u64, 2), result.code);
-    try std.testing.expectEqual(@as(u64, 1), result.comments);
+    try std.testing.expectEqual(@as(u32, 3), result.lines);
+    try std.testing.expectEqual(@as(u32, 2), result.code);
+    try std.testing.expectEqual(@as(u32, 1), result.comments);
 }
 
 test "countLines fortran bang comment" {
-    const lang = langs.Language{ .name = "Fortran", .extensions = &.{}, .line_comment = "!" };
+    const lang = langs.Language{ .name = "Fortran", .extensions = &.{}, .style = .fortran };
     const source =
         \\program test
         \\! comment
         \\end program
     ;
     const result = countLines(source, &lang);
-    try std.testing.expectEqual(@as(u64, 3), result.lines);
-    try std.testing.expectEqual(@as(u64, 2), result.code);
-    try std.testing.expectEqual(@as(u64, 1), result.comments);
+    try std.testing.expectEqual(@as(u32, 3), result.lines);
+    try std.testing.expectEqual(@as(u32, 2), result.code);
+    try std.testing.expectEqual(@as(u32, 1), result.comments);
 }
 
 test "countLines cobol asterisk comment" {
-    const lang = langs.Language{ .name = "COBOL", .extensions = &.{}, .line_comment = "*" };
+    const lang = langs.Language{ .name = "COBOL", .extensions = &.{}, .style = .cobol };
     const source =
         \\DISPLAY "hello"
         \\* comment
         \\STOP RUN
     ;
     const result = countLines(source, &lang);
-    try std.testing.expectEqual(@as(u64, 3), result.lines);
-    try std.testing.expectEqual(@as(u64, 2), result.code);
-    try std.testing.expectEqual(@as(u64, 1), result.comments);
+    try std.testing.expectEqual(@as(u32, 3), result.lines);
+    try std.testing.expectEqual(@as(u32, 2), result.code);
+    try std.testing.expectEqual(@as(u32, 1), result.comments);
 }
 
 test "countLines vb tick comment" {
-    const lang = langs.Language{ .name = "Visual Basic", .extensions = &.{}, .line_comment = "'" };
+    const lang = langs.Language{ .name = "Visual Basic", .extensions = &.{}, .style = .vb_tick };
     const source =
         \\Dim x As Integer
         \\' comment
         \\x = 1
     ;
     const result = countLines(source, &lang);
-    try std.testing.expectEqual(@as(u64, 3), result.lines);
-    try std.testing.expectEqual(@as(u64, 2), result.code);
-    try std.testing.expectEqual(@as(u64, 1), result.comments);
+    try std.testing.expectEqual(@as(u32, 3), result.lines);
+    try std.testing.expectEqual(@as(u32, 2), result.code);
+    try std.testing.expectEqual(@as(u32, 1), result.comments);
 }
 
 test "countLines batch colon comment" {
-    const lang = langs.Language{ .name = "Batch", .extensions = &.{}, .line_comment = "::" };
+    const lang = langs.Language{ .name = "Batch", .extensions = &.{}, .style = .batch };
     const source =
         \\echo hello
         \\:: comment
         \\echo world
     ;
     const result = countLines(source, &lang);
-    try std.testing.expectEqual(@as(u64, 3), result.lines);
-    try std.testing.expectEqual(@as(u64, 2), result.code);
-    try std.testing.expectEqual(@as(u64, 1), result.comments);
+    try std.testing.expectEqual(@as(u32, 3), result.lines);
+    try std.testing.expectEqual(@as(u32, 2), result.code);
+    try std.testing.expectEqual(@as(u32, 1), result.comments);
 }
 
 test "countLines semicolon comment" {
-    const lang = langs.Language{ .name = "Assembly", .extensions = &.{}, .line_comment = ";" };
+    const lang = langs.Language{ .name = "Assembly", .extensions = &.{}, .style = .semicolon };
     const source =
         \\mov eax, 1
         \\; comment
         \\ret
     ;
     const result = countLines(source, &lang);
-    try std.testing.expectEqual(@as(u64, 3), result.lines);
-    try std.testing.expectEqual(@as(u64, 2), result.code);
-    try std.testing.expectEqual(@as(u64, 1), result.comments);
+    try std.testing.expectEqual(@as(u32, 3), result.lines);
+    try std.testing.expectEqual(@as(u32, 2), result.code);
+    try std.testing.expectEqual(@as(u32, 1), result.comments);
 }
 
 test "countLines lua block comment" {
     const lang = langs.Language{
         .name = "Lua",
         .extensions = &.{},
-        .line_comment = "--",
-        .block_comment_open = "--[[",
-        .block_comment_close = "]]",
+        .style = .lua,
     };
     const source =
         \\--[[
@@ -307,17 +308,16 @@ test "countLines lua block comment" {
         \\print("hello")
     ;
     const result = countLines(source, &lang);
-    try std.testing.expectEqual(@as(u64, 4), result.lines);
-    try std.testing.expectEqual(@as(u64, 1), result.code);
-    try std.testing.expectEqual(@as(u64, 3), result.comments);
+    try std.testing.expectEqual(@as(u32, 4), result.lines);
+    try std.testing.expectEqual(@as(u32, 1), result.code);
+    try std.testing.expectEqual(@as(u32, 3), result.comments);
 }
 
 test "countLines pascal block comment" {
     const lang = langs.Language{
         .name = "Pascal",
         .extensions = &.{},
-        .block_comment_open = "(*",
-        .block_comment_close = "*)",
+        .style = .pascal,
     };
     const source =
         \\procedure Foo;
@@ -326,31 +326,29 @@ test "countLines pascal block comment" {
         \\end
     ;
     const result = countLines(source, &lang);
-    try std.testing.expectEqual(@as(u64, 4), result.lines);
-    try std.testing.expectEqual(@as(u64, 3), result.code);
-    try std.testing.expectEqual(@as(u64, 1), result.comments);
+    try std.testing.expectEqual(@as(u32, 4), result.lines);
+    try std.testing.expectEqual(@as(u32, 3), result.code);
+    try std.testing.expectEqual(@as(u32, 1), result.comments);
 }
 
 test "countLines ada dash dash comment" {
-    const lang = langs.Language{ .name = "Ada", .extensions = &.{}, .line_comment = "--" };
+    const lang = langs.Language{ .name = "Ada", .extensions = &.{}, .style = .double_dash };
     const source =
         \\procedure Foo is
         \\-- comment
         \\begin null; end
     ;
     const result = countLines(source, &lang);
-    try std.testing.expectEqual(@as(u64, 3), result.lines);
-    try std.testing.expectEqual(@as(u64, 2), result.code);
-    try std.testing.expectEqual(@as(u64, 1), result.comments);
+    try std.testing.expectEqual(@as(u32, 3), result.lines);
+    try std.testing.expectEqual(@as(u32, 2), result.code);
+    try std.testing.expectEqual(@as(u32, 1), result.comments);
 }
 
 test "countLines terraform hash and block" {
     const lang = langs.Language{
         .name = "Terraform",
         .extensions = &.{},
-        .line_comment = "#",
-        .block_comment_open = "/*",
-        .block_comment_close = "*/",
+        .style = .hash_c_block,
     };
     const source =
         \\resource "x" "y" {
@@ -360,7 +358,7 @@ test "countLines terraform hash and block" {
         \\}
     ;
     const result = countLines(source, &lang);
-    try std.testing.expectEqual(@as(u64, 5), result.lines);
-    try std.testing.expectEqual(@as(u64, 3), result.code);
-    try std.testing.expectEqual(@as(u64, 2), result.comments);
+    try std.testing.expectEqual(@as(u32, 5), result.lines);
+    try std.testing.expectEqual(@as(u32, 3), result.code);
+    try std.testing.expectEqual(@as(u32, 2), result.comments);
 }
