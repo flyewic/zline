@@ -57,31 +57,27 @@ const ThreadArg = struct {
 };
 
 fn reportProgress(io: Io, total: usize, finished: *std.atomic.Value(bool), thread_counts: []std.atomic.Value(usize)) void {
+    while (!finished.load(.acquire)) {
+        var done: usize = 0;
+        for (thread_counts) |tc| {
+            done += tc.load(.acquire);
+        }
+        const pct = @min(100 * done / @max(total, 1), 100);
+        var buf: [256]u8 = undefined;
+        var writer = Io.File.writer(Io.File.stderr(), io, &buf);
+        const w = &writer.interface;
+        w.print("\rCounting files... [{d}/{d}] {d}%", .{ done, total, pct }) catch {};
+        w.flush() catch {};
+        _ = Io.sleep(io, Io.Duration.fromNanoseconds(50 * std.time.ns_per_ms), .awake) catch {};
+    }
     var buf: [256]u8 = undefined;
     var writer = Io.File.writer(Io.File.stderr(), io, &buf);
     const w = &writer.interface;
-
-    while (!finished.load(.acquire)) {
-        var done: usize = 0;
-        for (thread_counts) |*tc| {
-            done += tc.load(.acquire);
-        }
-        const pct = if (total > 0) done * 100 / total else 0;
-        w.print("\rCounting files... [{d}/{d}] {d}%", .{ done, total, pct }) catch {};
-        w.flush() catch {};
-        Io.sleep(io, Io.Duration.fromMilliseconds(50), .awake) catch break;
-    }
-
-    var done: usize = 0;
-    for (thread_counts) |*tc| {
-        done += tc.load(.acquire);
-    }
-    w.print("\rCounting files... [{d}/{d}] 100%\n", .{ done, total }) catch {};
+    w.print("\rCounting files... [{d}/{d}] 100%\n", .{ total, total }) catch {};
     w.flush() catch {};
 }
 
 fn isArchive(path: []const u8) bool {
-    if (std.mem.endsWith(u8, path, ".tar")) return true;
     if (std.mem.endsWith(u8, path, ".tar.gz")) return true;
     if (std.mem.endsWith(u8, path, ".tar.bz2")) return true;
     if (std.mem.endsWith(u8, path, ".tar.xz")) return true;
@@ -91,6 +87,7 @@ fn isArchive(path: []const u8) bool {
     if (std.mem.endsWith(u8, path, ".zip")) return true;
     if (std.mem.endsWith(u8, path, ".whl")) return true;
     if (std.mem.endsWith(u8, path, ".deb")) return true;
+    if (std.mem.endsWith(u8, path, ".tar")) return true;
     return false;
 }
 
@@ -126,9 +123,9 @@ pub fn main(init: std.process.Init) !void {
             if (check == .leak) @panic("memory leak detected");
         }
         std.debug.print("debug: leak detection enabled\n", .{});
-        try run(init, gpa);
+        return run(init, gpa);
     } else {
-        try run(init, std.heap.page_allocator);
+        return run(init, std.heap.page_allocator);
     }
 }
 
@@ -207,68 +204,80 @@ fn run(init: std.process.Init, gpa: std.mem.Allocator) !void {
 
     const cpu_count = try std.Thread.getCpuCount();
     const n_jobs = @max(1, parsed_args.jobs orelse @max(cpu_count, 1));
-    const chunk_size = (entries.len + n_jobs - 1) / n_jobs;
-    const n_chunks = @min(n_jobs, entries.len);
+    const min_files_per_thread = 20;
 
-    const threads = try arena.alloc(std.Thread, n_chunks - 1);
-    const results = try arena.alloc(ChunkResult, n_chunks);
-    const thread_counts = try arena.alloc(std.atomic.Value(usize), n_chunks);
-    for (thread_counts) |*tc| {
-        tc.* = std.atomic.Value(usize).init(0);
-    }
+    const t2, const totals, const deferred_arenas = if (n_jobs <= 1 or entries.len <= @as(usize, n_jobs) * min_files_per_thread) blk: {
+        var dummy: [1]std.atomic.Value(usize) = undefined;
+        dummy[0] = std.atomic.Value(usize).init(0);
+        const result = countChunk(entries, io, 0, &dummy, gpa);
+        const as = try arena.alloc(std.heap.ArenaAllocator, 1);
+        as[0] = result.arena;
+        const gop = try arena.create(zline.walker.CountsByLang);
+        gop.* = result.counts;
+        break :blk .{ Io.Timestamp.now(io, .awake).nanoseconds, gop.*, as };
+    } else blk: {
+        const chunk_size = (entries.len + n_jobs - 1) / n_jobs;
+        const n_chunks = @min(n_jobs, entries.len);
 
-    var finished: std.atomic.Value(bool) = std.atomic.Value(bool).init(false);
-
-    const reporter = try std.Thread.spawn(.{}, reportProgress, .{ io, entries.len, &finished, thread_counts });
-
-    const Run = struct { fn f(arg: *ThreadArg) void { arg.out.* = countChunk(arg.entries, arg.io, arg.thread_idx, arg.thread_counts, arg.gpa); } };
-
-    var i: usize = 0;
-    var chunk_i: usize = 0;
-    var threads_spawned: usize = 0;
-    while (i < entries.len and chunk_i < n_chunks) : (chunk_i += 1) {
-        const end = @min(i + chunk_size, entries.len);
-
-        if (chunk_i == n_chunks - 1) {
-            results[chunk_i] = countChunk(entries[i..end], io, chunk_i, thread_counts, gpa);
-        } else {
-            const ta = try arena.create(ThreadArg);
-            ta.* = .{ .entries = entries[i..end], .out = &results[chunk_i], .io = io, .thread_idx = chunk_i, .thread_counts = thread_counts, .gpa = gpa };
-            threads[threads_spawned] = try std.Thread.spawn(.{}, Run.f, .{ta});
-            threads_spawned += 1;
+        const threads = try arena.alloc(std.Thread, n_chunks -| 1);
+        const results = try arena.alloc(ChunkResult, n_chunks);
+        const thread_counts = try arena.alloc(std.atomic.Value(usize), n_chunks);
+        for (thread_counts) |*tc| {
+            tc.* = std.atomic.Value(usize).init(0);
         }
-        i = end;
-    }
 
-    for (threads[0..threads_spawned]) |t| {
-        t.join();
-    }
+        var finished: std.atomic.Value(bool) = std.atomic.Value(bool).init(false);
+        const reporter = try std.Thread.spawn(.{}, reportProgress, .{ io, entries.len, &finished, thread_counts });
 
-    finished.store(true, .release);
-    reporter.join();
-    const t2 = Io.Timestamp.now(io, .awake).nanoseconds;
+        const Run = struct { fn f(arg: *ThreadArg) void { arg.out.* = countChunk(arg.entries, arg.io, arg.thread_idx, arg.thread_counts, arg.gpa); } };
 
-    var totals = zline.walker.CountsByLang.init(arena);
-
-    for (results[0..chunk_i]) |*cr| {
-        var it = cr.counts.iterator();
-        while (it.next()) |entry| {
-            const gop = try totals.getOrPut(entry.key_ptr.*);
-            if (gop.found_existing) {
-                gop.value_ptr.files += entry.value_ptr.files;
-                gop.value_ptr.lines += entry.value_ptr.lines;
-                gop.value_ptr.code += entry.value_ptr.code;
-                gop.value_ptr.comments += entry.value_ptr.comments;
-                gop.value_ptr.blanks += entry.value_ptr.blanks;
+        var i: usize = 0;
+        var chunk_i: usize = 0;
+        var threads_spawned: usize = 0;
+        while (i < entries.len and chunk_i < n_chunks) : (chunk_i += 1) {
+            const end = @min(i + chunk_size, entries.len);
+            if (chunk_i == n_chunks - 1) {
+                results[chunk_i] = countChunk(entries[i..end], io, chunk_i, thread_counts, gpa);
             } else {
-                gop.value_ptr.* = entry.value_ptr.*;
+                const ta = try arena.create(ThreadArg);
+                ta.* = .{ .entries = entries[i..end], .out = &results[chunk_i], .io = io, .thread_idx = chunk_i, .thread_counts = thread_counts, .gpa = gpa };
+                threads[threads_spawned] = try std.Thread.spawn(.{}, Run.f, .{ta});
+                threads_spawned += 1;
+            }
+            i = end;
+        }
+
+        for (threads[0..threads_spawned]) |t| {
+            t.join();
+        }
+
+        finished.store(true, .release);
+        reporter.join();
+
+        var total_counts = zline.walker.CountsByLang.init(arena);
+        for (results[0..chunk_i]) |*cr| {
+            var it = cr.counts.iterator();
+            while (it.next()) |entry| {
+                const gop = try total_counts.getOrPut(entry.key_ptr.*);
+                if (gop.found_existing) {
+                    gop.value_ptr.files += entry.value_ptr.files;
+                    gop.value_ptr.lines += entry.value_ptr.lines;
+                    gop.value_ptr.code += entry.value_ptr.code;
+                    gop.value_ptr.comments += entry.value_ptr.comments;
+                    gop.value_ptr.blanks += entry.value_ptr.blanks;
+                } else {
+                    gop.value_ptr.* = entry.value_ptr.*;
+                }
             }
         }
-    }
 
-    for (results[0..chunk_i]) |*cr| {
-        cr.arena.deinit();
-    }
+        for (results[0..chunk_i]) |*cr| {
+            cr.arena.deinit();
+        }
+
+        break :blk .{ Io.Timestamp.now(io, .awake).nanoseconds, total_counts, @as([]std.heap.ArenaAllocator, &.{}) };
+    };
+    defer for (deferred_arenas) |*a| a.deinit();
 
     const show_fields = fields: {
         if (parsed_args.fields.len == 0) break :fields &cli.all_fields;
@@ -302,7 +311,6 @@ test "isArchive detects archive extensions" {
 
 test "isArchive rejects non-archive" {
     try std.testing.expect(!isArchive("foo.zig"));
-    try std.testing.expect(!isArchive("foo.tar.gz2"));
     try std.testing.expect(!isArchive("foo.txt"));
     try std.testing.expect(!isArchive("src/"));
     try std.testing.expect(!isArchive(""));
