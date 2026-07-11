@@ -16,12 +16,13 @@ Scan: 156µs · Count: 50ms · 1 language (7 files, 1231 lines)
 
 ## features
 
-- comment detection for 120+ languages
+- comment detection for 150+ languages
 - 3-stage language detection: extension → heuristics → shebang
 - pattern matching to resolve ambiguous extensions (`.m` → MATLAB vs Obj-C)
 - shebang detection for extensionless scripts (`#!/usr/bin/env python3`)
 - filter columns with `--fields language,lines,code`
 - sort by any column with `--sort lines`
+- counts lines inside archives (`.zip`, `.tar`, `.tar.gz`, `.tar.bz2`, `.tar.xz`)
 - cross platform (hopefully)
 
 ## install
