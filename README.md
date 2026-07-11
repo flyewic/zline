@@ -34,7 +34,8 @@ you need [zig 0.16.0](https://ziglang.org/download/)
 ```bash
 git clone https://github.com/flyewic/zline.git
 cd zline
-zig build -Doptimize=ReleaseSmall
+zig build -Doptimize=ReleaseSafe   # ~645KB, with safety checks
+zig build -Doptimize=ReleaseSmall  # ~198KB, minimal size
 cp zig-out/bin/zline ~/.local/bin/
 ```
 
@@ -69,7 +70,8 @@ zline -j 16 ~/huge-repo
 ```bash
 zig build test                      # run tests
 zig build                           # debug build with leak detection
-zig build -Doptimize=ReleaseSmall   # release build
+zig build -Doptimize=ReleaseSafe    # release build (safety checks on)
+zig build -Doptimize=ReleaseSmall   # min-size release (for distribution)
 ```
 
 the debug build uses `DebugAllocator` and will panic if anything leaked. the release build uses raw page allocation, no overhead.
