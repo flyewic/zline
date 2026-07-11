@@ -1,25 +1,25 @@
 class Zline < Formula
   desc "fast line counter in zig"
   homepage "https://github.com/flyewic/zline"
-  url "https://github.com/flyewic/zline/releases/download/v0.3.4/zline-x86_64-linux"
-  sha256 "4f59af0cbb2cd356de5e6af7bccc1073c0bc0f692f7e3eb14f6d806affc40f3c"
-  version "0.3.4"
+  url "https://github.com/flyewic/zline/releases/download/v0.4.0/zline-x86_64-linux"
+  sha256 "f883140b0360550238ea1543e6230bf5981e7bc9dfd18e676568047f96e640a2"
+  version "0.4.0"
   license "MIT"
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/flyewic/zline/releases/download/v0.3.4/zline-aarch64-macos"
-      sha256 "f7e7f4b502e627105c2bce817ddce9898b5e7d2e51863bd50bde5134ad888c83"
+      url "https://github.com/flyewic/zline/releases/download/v0.4.0/zline-aarch64-macos"
+      sha256 "634e0f9ed54fc69bed6f2443a245e2d469f8e3a4b722f00fc678f3215e346d7c"
     else
-      url "https://github.com/flyewic/zline/releases/download/v0.3.4/zline-x86_64-macos"
-      sha256 "2d1a41faedf7b471821de5719ca90c1fa8acd8585f375e44ec38e230289f454f"
+      url "https://github.com/flyewic/zline/releases/download/v0.4.0/zline-x86_64-macos"
+      sha256 "4da1e6b4bf1804050ed7f6ed3d519531f4af4858d5574983ea1951ab07349559"
     end
   end
 
   on_linux do
     if Hardware::CPU.arm?
-      url "https://github.com/flyewic/zline/releases/download/v0.3.4/zline-aarch64-linux"
-      sha256 "ce1b5ef4fa24e7e588cb71147a7969c3ca8f06d1f4e956928bb93172d9405675"
+      url "https://github.com/flyewic/zline/releases/download/v0.4.0/zline-aarch64-linux"
+      sha256 "1685138f6f8591f75f8f18ed27a6c85e801419489d58abc57fb95b45969b65eb"
     end
   end
 
