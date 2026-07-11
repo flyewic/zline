@@ -95,6 +95,44 @@ fn reportProgress(io: Io, progress: *Progress) void {
     w.flush() catch {};
 }
 
+fn isArchive(path: []const u8) bool {
+    if (std.mem.endsWith(u8, path, ".tar")) return true;
+    if (std.mem.endsWith(u8, path, ".tar.gz")) return true;
+    if (std.mem.endsWith(u8, path, ".tar.bz2")) return true;
+    if (std.mem.endsWith(u8, path, ".tar.xz")) return true;
+    if (std.mem.endsWith(u8, path, ".tgz")) return true;
+    if (std.mem.endsWith(u8, path, ".tbz2")) return true;
+    if (std.mem.endsWith(u8, path, ".txz")) return true;
+    if (std.mem.endsWith(u8, path, ".zip")) return true;
+    if (std.mem.endsWith(u8, path, ".whl")) return true;
+    if (std.mem.endsWith(u8, path, ".deb")) return true;
+    return false;
+}
+
+fn extractArchive(arena: std.mem.Allocator, init: std.process.Init, io: Io, path: []const u8) ![]const u8 {
+    _ = init;
+    const ts = Io.Timestamp.now(io, .awake).nanoseconds;
+    var rng = std.Random.DefaultPrng.init(@intCast(ts));
+    var tmp_buf: [64]u8 = undefined;
+    const tmp_name = try std.fmt.bufPrint(&tmp_buf, "zline-{x}", .{rng.random().int(u32)});
+    const tmp_dir = try std.fs.path.join(arena, &.{ "/tmp", tmp_name });
+    Io.Dir.createDirPath(Io.Dir.cwd(), io, tmp_dir) catch {};
+
+    if (std.mem.endsWith(u8, path, ".zip") or std.mem.endsWith(u8, path, ".whl")) {
+        _ = try std.process.run(arena, io, .{ .argv = &.{ "unzip", "-q", "-o", path, "-d", tmp_dir } });
+    } else if (std.mem.endsWith(u8, path, ".deb")) {
+        _ = try std.process.run(arena, io, .{ .argv = &.{ "dpkg-deb", "-x", path, tmp_dir } });
+    } else {
+        _ = try std.process.run(arena, io, .{ .argv = &.{ "tar", "-xf", path, "-C", tmp_dir } });
+    }
+
+    return tmp_dir;
+}
+
+fn cleanupDir(io: Io, path: []const u8) void {
+    Io.Dir.deleteTree(Io.Dir.cwd(), io, path) catch {};
+}
+
 pub fn main(init: std.process.Init) !void {
     if (builtin.mode == .Debug) {
         var debug: std.heap.DebugAllocator(.{ .thread_safe = true }) = .init;
@@ -143,10 +181,24 @@ fn run(init: std.process.Init, gpa: std.mem.Allocator) !void {
         w.flush() catch {};
     }
 
-    const entries = zline.walker.collectFiles(arena, io, parsed_args.path, parsed_args.hidden) catch |err| {
+    var scan_path = parsed_args.path;
+    var cleanup_path: ?[]const u8 = null;
+    defer if (cleanup_path) |cp| cleanupDir(io, cp);
+    if (isArchive(parsed_args.path)) {
+        scan_path = extractArchive(arena, init, io, parsed_args.path) catch |err| {
+            var ebuf: [256]u8 = undefined;
+            var ew = Io.File.writer(Io.File.stderr(), io, &ebuf);
+            ew.interface.print("error: cannot extract {s}: {s}\n", .{ parsed_args.path, @errorName(err) }) catch {};
+            ew.flush() catch {};
+            return;
+        };
+        cleanup_path = scan_path;
+    }
+
+    const entries = zline.walker.collectFiles(arena, io, scan_path, parsed_args.hidden) catch |err| {
         var ebuf: [256]u8 = undefined;
         var ew = Io.File.writer(Io.File.stderr(), io, &ebuf);
-        ew.interface.print("error: {s}: {s}\n", .{ parsed_args.path, @errorName(err) }) catch {};
+        ew.interface.print("error: {s}: {s}\n", .{ scan_path, @errorName(err) }) catch {};
         ew.flush() catch {};
         return;
     };
