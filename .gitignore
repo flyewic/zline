@@ -10,3 +10,4 @@ zig-out/
 *.exe
 
 assets/
+.direnv/

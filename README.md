@@ -41,6 +41,18 @@ scoop bucket add flyewic https://github.com/flyewic/zline
 scoop install zline
 ```
 
+### nix
+
+```bash
+nix profile install github:flyewic/zline
+```
+
+or try it without installing:
+
+```bash
+nix run github:flyewic/zline -- src/
+```
+
 ### direct download
 
 get the latest from [releases](https://github.com/flyewic/zline/releases), pick your platform, drop it in `$PATH`.
