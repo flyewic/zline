@@ -1,13 +1,24 @@
 {
-    "version": "0.3.0",
+    "version": "0.3.1",
     "description": "fast line counter in zig",
     "homepage": "https://github.com/flyewic/zline",
     "license": "MIT",
     "architecture": {
         "64bit": {
-            "url": "https://github.com/flyewic/zline/releases/download/v0.3.0/zline-x86_64-windows.exe",
+            "url": "https://github.com/flyewic/zline/releases/download/v0.3.1/zline-x86_64-windows.exe",
             "hash": "sha256:PASTE_SHA256_FOR_zline-x86_64-windows.exe_HERE"
         }
     },
-    "bin": "zline-x86_64-windows.exe"
+    "bin": "zline-x86_64-windows.exe",
+    "checkver": "github",
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/flyewic/zline/releases/download/$version/zline-x86_64-windows.exe",
+                "hash": {
+                    "url": "$url.sha256"
+                }
+            }
+        }
+    }
 }
