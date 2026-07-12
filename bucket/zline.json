@@ -6,7 +6,7 @@
     "architecture": {
         "64bit": {
             "url": "https://github.com/flyewic/zline/releases/download/v0.4.3/zline-x86_64-windows.exe",
-            "hash": "sha256:1218971a3331e5a3fd62d804a7a9134cc008e60fe6d1c3e98e74a18699baf636"
+            "hash": "sha256:81bc561b2c7fb16e7517ee25fee232a96c26bc2953440c68aa965d0a339fe17c"
         }
     },
     "bin": "zline-x86_64-windows.exe",
