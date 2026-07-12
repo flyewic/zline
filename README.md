@@ -15,7 +15,7 @@ Scan: 29µs | Count: 87µs | 1 language (7 files, 2186 lines)
 ```
 
 ```
-$ zline --output json --languages Go,Python /home/flye/Projects/griddy
+$ zline --output json --languages Go,Python my-project/
 
 {
   "languages": [
@@ -32,10 +32,14 @@ $ zline --output json --languages Go,Python /home/flye/Projects/griddy
 - 3-stage language detection: extension → heuristics → shebang
 - pattern matching to resolve ambiguous extensions (`.m` → MATLAB vs Obj-C)
 - shebang detection for extensionless scripts (`#!/usr/bin/env python3`)
+- multiple output formats: table (default), json, csv
+- filter languages to show with `--languages zig,rust,go`
 - filter columns with `--fields language,lines,code`
 - sort by any column with `--sort lines`
 - counts lines inside archives (`.zip`, `.tar`, `.tar.gz`, `.tar.bz2`, `.tar.xz`)
-- cross platform (hopefully)
+- multi-threaded counting for large directories
+- single file target support
+- cross platform
 
 ## install
 
@@ -76,8 +80,8 @@ you need [zig 0.16.0](https://ziglang.org/download/)
 ```bash
 git clone https://github.com/flyewic/zline.git
 cd zline
-zig build -Doptimize=ReleaseSafe   # ~645KB, with safety checks
-zig build -Doptimize=ReleaseSmall  # ~198KB, minimal size
+zig build -Doptimize=ReleaseSafe   # with safety checks
+zig build -Doptimize=ReleaseSmall  # minimal size
 cp zig-out/bin/zline ~/.local/bin/
 ```
 
@@ -150,10 +154,10 @@ first launch may trigger windows defender smartscreen. click "More info" → "Ru
 open `src/langs.zig`. most are a single line:
 
 ```zig
-L(cStyle, "Rust", &.{ ".rs" }),
+L(.c_style, "Rust", &.{ ".rs" }),
 ```
 
-template styles handle the comment syntax for you. only unique cases like lua or julia get their own block.
+the `CommentStyle` enum handles the comment syntax for you. only unique cases like lua or julia get their own block.
 
 for extensions shared by multiple languages (`.m` is both Objective-C and MATLAB), add entries to the `ambiguous_defs` array with pattern scoring rules. the tool will peek at file contents to decide.
 
