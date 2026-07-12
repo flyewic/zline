@@ -174,9 +174,24 @@ fn run(init: std.process.Init, gpa: std.mem.Allocator) !void {
         cleanup_path = scan_path;
     }
 
-    const entries = zline.walker.collectFiles(arena, io, scan_path, parsed_args.hidden) catch |err| {
-        eprint(io, "error: {s}: {s}\n", .{ scan_path, @errorName(err) });
-        return;
+    // Check if the target is a single file instead of a directory
+    const entries = blk: {
+        const stat = Io.Dir.statFile(Io.Dir.cwd(), io, scan_path, .{}) catch {
+            break :blk zline.walker.collectFiles(arena, io, scan_path, parsed_args.hidden) catch |err| {
+                eprint(io, "error: {s}: {s}\n", .{ scan_path, @errorName(err) });
+                return;
+            };
+        };
+        if (stat.kind == .file) {
+            if (zline.walker.detectLanguage(io, scan_path)) |lang| {
+                break :blk &[_]FileEntry{.{ .path = scan_path, .lang = lang }};
+            }
+            break :blk &[_]FileEntry{};
+        }
+        break :blk zline.walker.collectFiles(arena, io, scan_path, parsed_args.hidden) catch |err| {
+            eprint(io, "error: {s}: {s}\n", .{ scan_path, @errorName(err) });
+            return;
+        };
     };
     const t1 = Io.Timestamp.now(io, .awake).nanoseconds;
 
