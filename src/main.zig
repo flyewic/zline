@@ -230,7 +230,11 @@ fn run(init: std.process.Init, gpa: std.mem.Allocator) !void {
         var finished: std.atomic.Value(bool) = std.atomic.Value(bool).init(false);
         const reporter = try std.Thread.spawn(.{}, reportProgress, .{ io, entries.len, &finished, thread_counts });
 
-        const Run = struct { fn f(arg: *ThreadArg) void { arg.out.* = countChunk(arg.entries, arg.io, arg.thread_idx, arg.thread_counts, arg.gpa); } };
+        const Run = struct {
+            fn f(arg: *ThreadArg) void {
+                arg.out.* = countChunk(arg.entries, arg.io, arg.thread_idx, arg.thread_counts, arg.gpa);
+            }
+        };
 
         var i: usize = 0;
         var chunk_i: usize = 0;
@@ -316,8 +320,7 @@ fn run(init: std.process.Init, gpa: std.mem.Allocator) !void {
         @memcpy(result[1..][0..parsed_args.fields.len], parsed_args.fields);
         break :fields result;
     };
-    try zline.table.printResults(io, totals, parsed_args.sort_by,
-        @as(u64, @intCast(t1 - t0)), @as(u64, @intCast(t2 - t1)), show_fields, parsed_args.output_format, gpa);
+    try zline.table.printResults(io, totals, parsed_args.sort_by, @as(u64, @intCast(t1 - t0)), @as(u64, @intCast(t2 - t1)), show_fields, parsed_args.output_format, gpa);
 }
 
 test "isArchive detects archive extensions" {

@@ -11,3 +11,5 @@ zig-out/
 
 assets/
 .direnv/
+.idea/
+.zed/
