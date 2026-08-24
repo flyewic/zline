@@ -177,7 +177,7 @@ fn run(init: std.process.Init, gpa: std.mem.Allocator) !void {
     // Check if the target is a single file instead of a directory
     const entries = blk: {
         const stat = Io.Dir.statFile(Io.Dir.cwd(), io, scan_path, .{}) catch {
-            break :blk zline.walker.collectFiles(arena, io, scan_path, parsed_args.hidden) catch |err| {
+            break :blk zline.walker.collectFiles(arena, io, scan_path, parsed_args.hidden, parsed_args.excludes) catch |err| {
                 eprint(io, "error: {s}: {s}\n", .{ scan_path, @errorName(err) });
                 return;
             };
@@ -188,7 +188,7 @@ fn run(init: std.process.Init, gpa: std.mem.Allocator) !void {
             }
             break :blk &[_]FileEntry{};
         }
-        break :blk zline.walker.collectFiles(arena, io, scan_path, parsed_args.hidden) catch |err| {
+        break :blk zline.walker.collectFiles(arena, io, scan_path, parsed_args.hidden, parsed_args.excludes) catch |err| {
             eprint(io, "error: {s}: {s}\n", .{ scan_path, @errorName(err) });
             return;
         };

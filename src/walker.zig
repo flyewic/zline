@@ -14,6 +14,17 @@ fn isHidden(name: []const u8) bool {
     return std.mem.startsWith(u8, name, ".") and !std.mem.eql(u8, name, "..") and !std.mem.eql(u8, name, ".");
 }
 
+fn isExcluded(rel_path: []const u8, excludes: []const []const u8) bool {
+    for (excludes) |ex| {
+        var pat = ex;
+        while (pat.len > 0 and pat[pat.len - 1] == '/') pat = pat[0 .. pat.len - 1];
+        if (pat.len == 0) continue;
+        if (std.mem.eql(u8, rel_path, pat)) return true;
+        if (std.mem.startsWith(u8, rel_path, pat) and rel_path.len > pat.len and rel_path[pat.len] == '/') return true;
+    }
+    return false;
+}
+
 fn readFileHeaderFull(io: Io, full_path: []const u8, buf: []u8) ![]u8 {
     const file = try Io.Dir.openFile(Io.Dir.cwd(), io, full_path, .{ .mode = .read_only });
     defer Io.File.close(file, io);
@@ -71,7 +82,7 @@ fn detectLanguageFromParts(io: Io, dir_path: []const u8, rel_path: []const u8, e
     };
 }
 
-pub fn collectFiles(allocator: std.mem.Allocator, io: Io, dir_path: []const u8, include_hidden: bool) ![]FileEntry {
+pub fn collectFiles(allocator: std.mem.Allocator, io: Io, dir_path: []const u8, include_hidden: bool, excludes: []const []const u8) ![]FileEntry {
     var entries = try std.ArrayList(FileEntry).initCapacity(allocator, 1024);
 
     const cwd = Io.Dir.cwd();
@@ -93,8 +104,15 @@ pub fn collectFiles(allocator: std.mem.Allocator, io: Io, dir_path: []const u8, 
                 walker.leave(io);
                 continue;
             }
+            if (isExcluded(entry.path, excludes)) {
+                walker.leave(io);
+                continue;
+            }
         } else if (entry.kind == .file) {
             if (!include_hidden and isHidden(std.fs.path.basename(entry.path))) {
+                continue;
+            }
+            if (isExcluded(entry.path, excludes)) {
                 continue;
             }
             const ext = std.fs.path.extension(entry.path);
@@ -117,4 +135,26 @@ test "isHidden detects hidden directories" {
     try std.testing.expect(!isHidden("src"));
     try std.testing.expect(!isHidden("."));
     try std.testing.expect(!isHidden(".."));
+}
+
+test "isExcluded matches directory prefix" {
+    const excludes = [_][]const u8{ "zig-pkgs/", "src/" };
+    try std.testing.expect(isExcluded("zig-pkgs/foo.zig", &excludes));
+    try std.testing.expect(isExcluded("zig-pkgs", &excludes));
+    try std.testing.expect(isExcluded("src/main.zig", &excludes));
+    try std.testing.expect(isExcluded("src/nested/deep.zig", &excludes));
+    try std.testing.expect(!isExcluded("src2/main.zig", &excludes));
+    try std.testing.expect(!isExcluded("main.zig", &excludes));
+}
+
+test "isExcluded without trailing slash" {
+    const excludes = [_][]const u8{"zig-pkgs"};
+    try std.testing.expect(isExcluded("zig-pkgs", &excludes));
+    try std.testing.expect(isExcluded("zig-pkgs/foo.zig", &excludes));
+    try std.testing.expect(!isExcluded("zig-pkgs-extra/foo.zig", &excludes));
+}
+
+test "isExcluded empty excludes" {
+    const excludes: [0][]const u8 = .{};
+    try std.testing.expect(!isExcluded("src/main.zig", &excludes));
 }

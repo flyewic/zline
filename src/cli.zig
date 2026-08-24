@@ -25,6 +25,8 @@ pub const Args = struct {
     output_format: OutputFormat = .table,
     /// Comma-separated language names to filter by, case-insensitive.
     languages: []const u8 = "",
+    /// Path prefixes to exclude from the scan, e.g. "zig-pkgs/,src/".
+    excludes: []const []const u8 = &.{},
 };
 
 /// Sort key for the output table.
@@ -96,6 +98,17 @@ fn parseFields(allocator: std.mem.Allocator, s: []const u8) ![]const Field {
     return result;
 }
 
+fn parseExcludes(allocator: std.mem.Allocator, s: []const u8) ![]const []const u8 {
+    var list: std.ArrayList([]const u8) = .empty;
+    var it = std.mem.splitScalar(u8, s, ',');
+    while (it.next()) |token| {
+        const trimmed = std.mem.trim(u8, token, " ");
+        if (trimmed.len == 0) continue;
+        try list.append(allocator, trimmed);
+    }
+    return list.toOwnedSlice(allocator);
+}
+
 fn parseOutputFormat(s: []const u8) !OutputFormat {
     if (std.mem.eql(u8, s, "table")) return .table;
     if (std.mem.eql(u8, s, "json")) return .json;
@@ -137,6 +150,10 @@ pub fn parseArgs(arena: std.mem.Allocator, args: []const []const u8) !Args {
             i += 1;
             if (i >= args.len) return error.MissingArgument;
             result.languages = args[i];
+        } else if (std.mem.eql(u8, arg, "--exclude")) {
+            i += 1;
+            if (i >= args.len) return error.MissingArgument;
+            result.excludes = try parseExcludes(arena, args[i]);
         } else if (std.mem.startsWith(u8, arg, "-")) {
             return error.UnknownFlag;
         } else {
@@ -168,6 +185,7 @@ pub fn printHelp(io: Io) void {
         \\  --hidden                 Include hidden files and directories
         \\  -o, --output FORMAT      Output format: table, json, csv (default: table)
         \\  -l, --languages LANGS    Comma-separated language names to filter by (e.g. "Zig,Rust,Go")
+        \\  --exclude PATHS          Comma-separated path prefixes to skip (e.g. "zig-pkgs/,src/")
     , .{}) catch {};
     w.print("\n", .{}) catch {};
     w.flush() catch {};
@@ -323,5 +341,30 @@ test "parseArgs languages flag long" {
 
 test "parseArgs languages flag missing value" {
     const args = &[_][]const u8{"zline", "-l"};
+    try std.testing.expectError(error.MissingArgument, parseArgs(std.testing.allocator, args));
+}
+
+test "parseArgs exclude flag" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const args = &[_][]const u8{"zline", "--exclude", "zig-pkgs/,src/"};
+    const parsed = try parseArgs(arena.allocator(), args);
+    try std.testing.expectEqual(@as(usize, 2), parsed.excludes.len);
+    try std.testing.expectEqualStrings("zig-pkgs/", parsed.excludes[0]);
+    try std.testing.expectEqualStrings("src/", parsed.excludes[1]);
+}
+
+test "parseArgs exclude flag trims spaces and skips empties" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const args = &[_][]const u8{"zline", "--exclude", " zig-pkgs/ , src/, "};
+    const parsed = try parseArgs(arena.allocator(), args);
+    try std.testing.expectEqual(@as(usize, 2), parsed.excludes.len);
+    try std.testing.expectEqualStrings("zig-pkgs/", parsed.excludes[0]);
+    try std.testing.expectEqualStrings("src/", parsed.excludes[1]);
+}
+
+test "parseArgs exclude flag missing value" {
+    const args = &[_][]const u8{"zline", "--exclude"};
     try std.testing.expectError(error.MissingArgument, parseArgs(std.testing.allocator, args));
 }
